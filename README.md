@@ -128,55 +128,48 @@ svc := needle.MustInvokeCtx[*MyService](ctx, c)
 
 ```go
 type Config struct {
-    DatabaseURL string
+DatabaseURL string
 }
 
 type Database struct {
-    Config *Config
+Config *Config
 }
 
 type UserRepository struct {
-    DB *Database
+DB *Database
 }
 
 type UserService struct {
-    Repo *UserRepository
+Repo *UserRepository
 }
 
 func main() {
-    c := needle.New()
+c := needle.New()
 
-    // Register all providers
-    needle.ProvideValue(c, &Config{DatabaseURL: "postgres://localhost/mydb"})
+// Register all providers
+needle.ProvideValue(c, &Config{DatabaseURL: "postgres://localhost/mydb"})
 
-    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
-        cfg := needle.MustInvoke[*Config](c)
-        return &Database{Config: cfg}, nil
-    })
+needle.Provide(c, func (ctx context.Context, r needle.Resolver) (*Database, error) {
+cfg := needle.MustInvoke[*Config](c)
+return &Database{Config: cfg}, nil
+})
 
-    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserRepository, error) {
-        db := needle.MustInvoke[*Database](c)
-        return &UserRepository{DB: db}, nil
-    })
+needle.Provide(c, func (ctx context.Context, r needle.Resolver) (*UserRepository, error) {
+db := needle.MustInvoke[*Database](c)
+return &UserRepository{DB: db}, nil
+})
 
-    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
-        repo := needle.MustInvoke[*UserRepository](c)
-        return &UserService{Repo: repo}, nil
-    })
+needle.Provide(c, func (ctx context.Context, r needle.Resolver) (*UserService, error) {
+repo := needle.MustInvoke[*UserRepository](c)
+return &UserService{Repo: repo}, nil
+})
 
-    // Resolve - all dependencies are automatically resolved
-    svc := needle.MustInvoke[*UserService](c)
+// Resolve - all dependencies are automatically resolved
+svc := needle.MustInvoke[*UserService](c)
 }
+
 ```
 
-## Roadmap
-
-- [x] **v0.1.0** - Core DI (Provide, Invoke, cycle detection)
-- [ ] **v0.2.0** - Lifecycle management (Start, Stop, Run)
-- [ ] **v0.3.0** - Scopes (Singleton, Transient, Request)
-- [ ] **v0.4.0** - Modules and decorators
-- [ ] **v0.5.0** - Health checks and observability
-- [ ] **v1.0.0** - Testing utilities and stability
 
 ## License
 
