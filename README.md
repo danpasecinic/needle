@@ -12,6 +12,7 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Cycle detection** - Automatically detects circular dependencies
 - **Named services** - Register multiple implementations of the same type
 - **Singleton by default** - Efficient instance reuse
+- **Lifecycle management** - OnStart/OnStop hooks with proper ordering
 
 ## Installation
 
@@ -124,52 +125,77 @@ svc, err := needle.InvokeCtx[*MyService](ctx, c)
 svc := needle.MustInvokeCtx[*MyService](ctx, c)
 ```
 
+### Lifecycle Management
+
+```go
+// Register with lifecycle hooks
+needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
+    return &Server{}, nil
+},
+    needle.WithOnStart(func(ctx context.Context) error {
+        fmt.Println("Server starting...")
+        return nil
+    }),
+    needle.WithOnStop(func(ctx context.Context) error {
+        fmt.Println("Server stopping...")
+        return nil
+    }),
+)
+
+// Start all services (in dependency order)
+err := c.Start(ctx)
+
+// Stop all services (in reverse dependency order)
+err := c.Stop(ctx)
+
+// Or use Run() to start and wait for shutdown signal
+err := c.Run(ctx) // Blocks until SIGINT/SIGTERM or context cancellation
+```
+
 ## Dependency Chain Example
 
 ```go
 type Config struct {
-DatabaseURL string
+    DatabaseURL string
 }
 
 type Database struct {
-Config *Config
+    Config *Config
 }
 
 type UserRepository struct {
-DB *Database
+    DB *Database
 }
 
 type UserService struct {
-Repo *UserRepository
+    Repo *UserRepository
 }
 
 func main() {
-c := needle.New()
+    c := needle.New()
 
-// Register all providers
-needle.ProvideValue(c, &Config{DatabaseURL: "postgres://localhost/mydb"})
+    // Register all providers
+    needle.ProvideValue(c, &Config{DatabaseURL: "postgres://localhost/mydb"})
 
-needle.Provide(c, func (ctx context.Context, r needle.Resolver) (*Database, error) {
-cfg := needle.MustInvoke[*Config](c)
-return &Database{Config: cfg}, nil
-})
+    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+        cfg := needle.MustInvoke[*Config](c)
+        return &Database{Config: cfg}, nil
+    })
 
-needle.Provide(c, func (ctx context.Context, r needle.Resolver) (*UserRepository, error) {
-db := needle.MustInvoke[*Database](c)
-return &UserRepository{DB: db}, nil
-})
+    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserRepository, error) {
+        db := needle.MustInvoke[*Database](c)
+        return &UserRepository{DB: db}, nil
+    })
 
-needle.Provide(c, func (ctx context.Context, r needle.Resolver) (*UserService, error) {
-repo := needle.MustInvoke[*UserRepository](c)
-return &UserService{Repo: repo}, nil
-})
+    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
+        repo := needle.MustInvoke[*UserRepository](c)
+        return &UserService{Repo: repo}, nil
+    })
 
-// Resolve - all dependencies are automatically resolved
-svc := needle.MustInvoke[*UserService](c)
+    // Resolve - all dependencies are automatically resolved
+    svc := needle.MustInvoke[*UserService](c)
 }
-
 ```
-
 
 ## License
 
