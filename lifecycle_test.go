@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/danpasecinic/needle/internal/reflect"
 )
 
 func TestContainer_StartStop(t *testing.T) {
@@ -77,6 +79,7 @@ func TestContainer_StartOrder(t *testing.T) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
+		WithDependencies(reflect.TypeKey[*testConfig]()),
 		WithOnStart(
 			func(ctx context.Context) error {
 				order = append(order, "database")
@@ -90,6 +93,7 @@ func TestContainer_StartOrder(t *testing.T) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
+		WithDependencies(reflect.TypeKey[*testDatabase]()),
 		WithOnStart(
 			func(ctx context.Context) error {
 				order = append(order, "server")
@@ -138,6 +142,7 @@ func TestContainer_StopOrder(t *testing.T) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
+		WithDependencies(reflect.TypeKey[*testConfig]()),
 		WithOnStop(
 			func(ctx context.Context) error {
 				order = append(order, "database")
@@ -151,6 +156,7 @@ func TestContainer_StopOrder(t *testing.T) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
+		WithDependencies(reflect.TypeKey[*testDatabase]()),
 		WithOnStop(
 			func(ctx context.Context) error {
 				order = append(order, "server")
