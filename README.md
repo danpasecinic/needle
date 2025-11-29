@@ -13,6 +13,7 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Named services** - Register multiple implementations of the same type
 - **Singleton by default** - Efficient instance reuse
 - **Lifecycle management** - OnStart/OnStop hooks with proper ordering
+- **Multiple scopes** - Singleton, Transient, Request, and Pooled
 
 ## Installation
 
@@ -150,6 +151,30 @@ err := c.Stop(ctx)
 
 // Or use Run() to start and wait for shutdown signal
 err := c.Run(ctx) // Blocks until SIGINT/SIGTERM or context cancellation
+```
+
+### Scopes
+
+```go
+// Singleton (default) - one instance per container
+needle.Provide(c, provider)
+needle.Provide(c, provider, needle.WithScope(needle.Singleton))
+
+// Transient - new instance every time
+needle.Provide(c, provider, needle.WithScope(needle.Transient))
+
+// Request - one instance per request context
+needle.Provide(c, provider, needle.WithScope(needle.Request))
+
+// Use request scope
+ctx := needle.WithRequestScope(context.Background())
+svc, _ := needle.InvokeCtx[*MyService](ctx, c)
+
+// Pooled - reusable pool of instances
+needle.Provide(c, provider, needle.WithPoolSize(10))
+
+// Release back to pool when done
+c.Release("*mypackage.MyService", instance)
 ```
 
 ## Dependency Chain Example

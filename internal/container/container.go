@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/danpasecinic/needle/internal/graph"
+	"github.com/danpasecinic/needle/internal/scope"
 )
 
 type State int
@@ -103,10 +104,6 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 		c.resolvingMu.Unlock()
 	}()
 
-	if instance, ok := c.registry.GetInstance(key); ok {
-		return instance, nil
-	}
-
 	c.mu.RLock()
 	entry, exists := c.registry.Get(key)
 	c.mu.RUnlock()
@@ -115,6 +112,25 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 		return nil, fmt.Errorf("service not found: %s", key)
 	}
 
+	return c.resolveWithScope(ctx, key, entry)
+}
+
+func (c *Container) resolveWithScope(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
+	switch entry.Scope {
+	case scope.Singleton:
+		return c.resolveSingleton(ctx, key, entry)
+	case scope.Transient:
+		return c.resolveTransient(ctx, key, entry)
+	case scope.Request:
+		return c.resolveRequest(ctx, key, entry)
+	case scope.Pooled:
+		return c.resolvePooled(ctx, key, entry)
+	default:
+		return c.resolveSingleton(ctx, key, entry)
+	}
+}
+
+func (c *Container) resolveSingleton(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
 	if entry.Instantiated {
 		return entry.Instance, nil
 	}
@@ -132,6 +148,106 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 
 	c.registry.SetInstance(key, instance)
 	return instance, nil
+}
+
+func (c *Container) resolveTransient(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
+	for _, dep := range entry.Dependencies {
+		if _, err := c.Resolve(ctx, dep); err != nil {
+			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
+		}
+	}
+
+	instance, err := entry.Provider(ctx, c)
+	if err != nil {
+		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
+	}
+
+	return instance, nil
+}
+
+type requestScopeKey struct{}
+
+type RequestScope struct {
+	mu        sync.RWMutex
+	instances map[string]any
+}
+
+func NewRequestScope() *RequestScope {
+	return &RequestScope{
+		instances: make(map[string]any),
+	}
+}
+
+func (rs *RequestScope) Get(key string) (any, bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	instance, ok := rs.instances[key]
+	return instance, ok
+}
+
+func (rs *RequestScope) Set(key string, instance any) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	rs.instances[key] = instance
+}
+
+func WithRequestScope(ctx context.Context) context.Context {
+	return context.WithValue(ctx, requestScopeKey{}, NewRequestScope())
+}
+
+func getRequestScope(ctx context.Context) *RequestScope {
+	if rs, ok := ctx.Value(requestScopeKey{}).(*RequestScope); ok {
+		return rs
+	}
+	return nil
+}
+
+func (c *Container) resolveRequest(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
+	rs := getRequestScope(ctx)
+	if rs == nil {
+		return nil, fmt.Errorf("request scope not found in context for %s; use WithRequestScope(ctx)", key)
+	}
+
+	if instance, ok := rs.Get(key); ok {
+		return instance, nil
+	}
+
+	for _, dep := range entry.Dependencies {
+		if _, err := c.Resolve(ctx, dep); err != nil {
+			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
+		}
+	}
+
+	instance, err := entry.Provider(ctx, c)
+	if err != nil {
+		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
+	}
+
+	rs.Set(key, instance)
+	return instance, nil
+}
+
+func (c *Container) resolvePooled(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
+	if instance, ok := c.registry.AcquireFromPool(key); ok {
+		return instance, nil
+	}
+
+	for _, dep := range entry.Dependencies {
+		if _, err := c.Resolve(ctx, dep); err != nil {
+			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
+		}
+	}
+
+	instance, err := entry.Provider(ctx, c)
+	if err != nil {
+		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
+	}
+
+	return instance, nil
+}
+
+func (c *Container) Release(key string, instance any) bool {
+	return c.registry.ReleaseToPool(key, instance)
 }
 
 func (c *Container) Has(key string) bool {
@@ -269,4 +385,12 @@ func (c *Container) AddOnStart(key string, hook Hook) {
 
 func (c *Container) AddOnStop(key string, hook Hook) {
 	c.registry.AddOnStop(key, hook)
+}
+
+func (c *Container) SetScope(key string, s scope.Scope) {
+	c.registry.SetScope(key, s)
+}
+
+func (c *Container) SetPoolSize(key string, size int) {
+	c.registry.SetPoolSize(key, size)
 }
