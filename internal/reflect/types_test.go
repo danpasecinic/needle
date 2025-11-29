@@ -61,13 +61,15 @@ func TestTypeKey(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := tt.typeFunc()
-			if got == "" {
-				t.Error("TypeKey returned empty string")
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				t.Parallel()
+				got := tt.typeFunc()
+				if got == "" {
+					t.Error("TypeKey returned empty string")
+				}
+			},
+		)
 	}
 }
 
@@ -128,13 +130,15 @@ func TestTypeKeyFromValue(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			key := TypeKeyFromValue(tt.value)
-			if key == "" {
-				t.Error("TypeKeyFromValue returned empty string")
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				t.Parallel()
+				key := TypeKeyFromValue(tt.value)
+				if key == "" {
+					t.Error("TypeKeyFromValue returned empty string")
+				}
+			},
+		)
 	}
 }
 
@@ -165,12 +169,14 @@ func TestIsNil(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := IsNil(tt.v); got != tt.want {
-				t.Errorf("IsNil() = %v, want %v", got, tt.want)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				t.Parallel()
+				if got := IsNil(tt.v); got != tt.want {
+					t.Errorf("IsNil() = %v, want %v", got, tt.want)
+				}
+			},
+		)
 	}
 }
 

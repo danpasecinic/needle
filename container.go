@@ -1,7 +1,11 @@
 package needle
 
 import (
+	"context"
 	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/danpasecinic/needle/internal/container"
 )
@@ -24,9 +28,11 @@ func newContainer(opts ...Option) *Container {
 		opt(cfg)
 	}
 
-	internal := container.New(&container.Config{
-		Logger: cfg.logger,
-	})
+	internal := container.New(
+		&container.Config{
+			Logger: cfg.logger,
+		},
+	)
 
 	return &Container{
 		internal: internal,
@@ -47,6 +53,39 @@ func (c *Container) Size() int {
 
 func (c *Container) Keys() []string {
 	return c.internal.Keys()
+}
+
+func (c *Container) Start(ctx context.Context) error {
+	if err := c.internal.Start(ctx); err != nil {
+		return errStartupFailed("container", err)
+	}
+	return nil
+}
+
+func (c *Container) Stop(ctx context.Context) error {
+	if err := c.internal.Stop(ctx); err != nil {
+		return errShutdownFailed("container", err)
+	}
+	return nil
+}
+
+func (c *Container) Run(ctx context.Context) error {
+	if err := c.Start(ctx); err != nil {
+		return err
+	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-ctx.Done():
+	case <-quit:
+	}
+
+	signal.Stop(quit)
+	close(quit)
+
+	return c.Stop(context.Background())
 }
 
 func errValidationFailed(cause error) *Error {

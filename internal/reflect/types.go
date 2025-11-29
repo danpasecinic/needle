@@ -31,7 +31,6 @@ func buildTypeKey(t reflect.Type) string {
 		return "<nil>"
 	}
 
-	//exhaustive:ignore
 	switch t.Kind() {
 	case reflect.Ptr:
 		return "*" + buildTypeKey(t.Elem())
@@ -42,7 +41,6 @@ func buildTypeKey(t reflect.Type) string {
 	case reflect.Map:
 		return "map[" + buildTypeKey(t.Key()) + "]" + buildTypeKey(t.Elem())
 	case reflect.Chan:
-		//exhaustive:ignore
 		switch t.ChanDir() {
 		case reflect.RecvDir:
 			return "<-chan " + buildTypeKey(t.Elem())
@@ -78,7 +76,6 @@ func IsNil(v any) bool {
 	}
 
 	rv := reflect.ValueOf(v)
-	//exhaustive:ignore
 	switch rv.Kind() {
 	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()

@@ -9,11 +9,22 @@ import (
 	"github.com/danpasecinic/needle/internal/graph"
 )
 
+type State int
+
+const (
+	StateNew State = iota
+	StateStarting
+	StateRunning
+	StateStopping
+	StateStopped
+)
+
 type Container struct {
 	mu       sync.RWMutex
 	registry *Registry
 	graph    *graph.Graph
 	logger   *slog.Logger
+	state    State
 
 	resolving   map[string]bool
 	resolvingMu sync.Mutex
@@ -166,4 +177,96 @@ func (c *Container) Graph() *graph.Graph {
 	defer c.mu.RUnlock()
 
 	return c.graph.Clone()
+}
+
+func (c *Container) State() State {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.state
+}
+
+func (c *Container) Start(ctx context.Context) error {
+	c.mu.Lock()
+	if c.state != StateNew && c.state != StateStopped {
+		c.mu.Unlock()
+		return fmt.Errorf("container already started")
+	}
+	c.state = StateStarting
+	c.mu.Unlock()
+
+	order, err := c.graph.StartupOrder()
+	if err != nil {
+		return fmt.Errorf("failed to determine startup order: %w", err)
+	}
+
+	for _, key := range order {
+		if _, err := c.Resolve(ctx, key); err != nil {
+			return fmt.Errorf("failed to resolve %s during startup: %w", key, err)
+		}
+
+		entry, exists := c.registry.GetEntry(key)
+		if !exists {
+			continue
+		}
+
+		for _, hook := range entry.OnStart {
+			c.logger.Debug("running OnStart hook", "service", key)
+			if err := hook(ctx); err != nil {
+				return fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+			}
+		}
+	}
+
+	c.mu.Lock()
+	c.state = StateRunning
+	c.mu.Unlock()
+
+	return nil
+}
+
+func (c *Container) Stop(ctx context.Context) error {
+	c.mu.Lock()
+	if c.state != StateRunning {
+		c.mu.Unlock()
+		return nil
+	}
+	c.state = StateStopping
+	c.mu.Unlock()
+
+	order, err := c.graph.ShutdownOrder()
+	if err != nil {
+		return fmt.Errorf("failed to determine shutdown order: %w", err)
+	}
+
+	var errs []error
+	for _, key := range order {
+		entry, exists := c.registry.GetEntry(key)
+		if !exists || !entry.Instantiated {
+			continue
+		}
+
+		for i := len(entry.OnStop) - 1; i >= 0; i-- {
+			c.logger.Debug("running OnStop hook", "service", key)
+			if err := entry.OnStop[i](ctx); err != nil {
+				errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
+			}
+		}
+	}
+
+	c.mu.Lock()
+	c.state = StateStopped
+	c.mu.Unlock()
+
+	if len(errs) > 0 {
+		return fmt.Errorf("shutdown errors: %v", errs)
+	}
+	return nil
+}
+
+func (c *Container) AddOnStart(key string, hook Hook) {
+	c.registry.AddOnStart(key, hook)
+}
+
+func (c *Container) AddOnStop(key string, hook Hook) {
+	c.registry.AddOnStop(key, hook)
 }

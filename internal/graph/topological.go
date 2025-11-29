@@ -193,10 +193,12 @@ func (g *Graph) ParallelStartupGroups() ([]ParallelGroup, error) {
 	groups := make([]ParallelGroup, 0, maxLevel+1)
 	for level := 0; level <= maxLevel; level++ {
 		if nodes, ok := groupMap[level]; ok {
-			groups = append(groups, ParallelGroup{
-				Level: level,
-				Nodes: nodes,
-			})
+			groups = append(
+				groups, ParallelGroup{
+					Level: level,
+					Nodes: nodes,
+				},
+			)
 		}
 	}
 
