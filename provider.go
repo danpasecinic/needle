@@ -14,6 +14,8 @@ type ProviderOption func(*providerConfig)
 type providerConfig struct {
 	name         string
 	dependencies []string
+	onStart      []container.Hook
+	onStop       []container.Hook
 }
 
 func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) error {
@@ -32,7 +34,18 @@ func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) 
 		return provider(ctx, resolver)
 	}
 
-	return c.internal.Register(key, wrappedProvider, cfg.dependencies)
+	if err := c.internal.Register(key, wrappedProvider, cfg.dependencies); err != nil {
+		return err
+	}
+
+	for _, hook := range cfg.onStart {
+		c.internal.AddOnStart(key, hook)
+	}
+	for _, hook := range cfg.onStop {
+		c.internal.AddOnStop(key, hook)
+	}
+
+	return nil
 }
 
 func ProvideValue[T any](c *Container, value T, opts ...ProviderOption) error {
@@ -46,7 +59,18 @@ func ProvideValue[T any](c *Container, value T, opts ...ProviderOption) error {
 		key = reflect.TypeKeyNamed[T](cfg.name)
 	}
 
-	return c.internal.RegisterValue(key, value)
+	if err := c.internal.RegisterValue(key, value); err != nil {
+		return err
+	}
+
+	for _, hook := range cfg.onStart {
+		c.internal.AddOnStart(key, hook)
+	}
+	for _, hook := range cfg.onStop {
+		c.internal.AddOnStop(key, hook)
+	}
+
+	return nil
 }
 
 func ProvideNamed[T any](c *Container, name string, provider Provider[T], opts ...ProviderOption) error {
@@ -68,5 +92,17 @@ func WithName(name string) ProviderOption {
 func WithDependencies(deps ...string) ProviderOption {
 	return func(cfg *providerConfig) {
 		cfg.dependencies = deps
+	}
+}
+
+func WithOnStart(hook Hook) ProviderOption {
+	return func(cfg *providerConfig) {
+		cfg.onStart = append(cfg.onStart, container.Hook(hook))
+	}
+}
+
+func WithOnStop(hook Hook) ProviderOption {
+	return func(cfg *providerConfig) {
+		cfg.onStop = append(cfg.onStop, container.Hook(hook))
 	}
 }
