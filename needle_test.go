@@ -49,9 +49,11 @@ func TestProvideAndInvoke(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
-		return &Config{Port: 8080, Host: "localhost"}, nil
-	})
+	err := needle.Provide(
+		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			return &Config{Port: 8080, Host: "localhost"}, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("Provide failed: %v", err)
 	}
@@ -100,19 +102,23 @@ func TestDependencyChain(t *testing.T) {
 		t.Fatalf("ProvideValue for Config failed: %v", err)
 	}
 
-	err = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
-		cfg := needle.MustInvoke[*Config](c)
-		return &Database{Config: cfg, Name: "testdb"}, nil
-	})
+	err = needle.Provide(
+		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+			cfg := needle.MustInvoke[*Config](c)
+			return &Database{Config: cfg, Name: "testdb"}, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("Provide for Database failed: %v", err)
 	}
 
-	err = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
-		db := needle.MustInvoke[*Database](c)
-		cfg := needle.MustInvoke[*Config](c)
-		return &Server{DB: db, Config: cfg}, nil
-	})
+	err = needle.Provide(
+		c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
+			db := needle.MustInvoke[*Database](c)
+			cfg := needle.MustInvoke[*Config](c)
+			return &Server{DB: db, Config: cfg}, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("Provide for Server failed: %v", err)
 	}
@@ -138,16 +144,20 @@ func TestNamedServices(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.ProvideNamed(c, "primary", func(ctx context.Context, r needle.Resolver) (*Database, error) {
-		return &Database{Name: "primary"}, nil
-	})
+	err := needle.ProvideNamed(
+		c, "primary", func(ctx context.Context, r needle.Resolver) (*Database, error) {
+			return &Database{Name: "primary"}, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("ProvideNamed for primary failed: %v", err)
 	}
 
-	err = needle.ProvideNamed(c, "replica", func(ctx context.Context, r needle.Resolver) (*Database, error) {
-		return &Database{Name: "replica"}, nil
-	})
+	err = needle.ProvideNamed(
+		c, "replica", func(ctx context.Context, r needle.Resolver) (*Database, error) {
+			return &Database{Name: "replica"}, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("ProvideNamed for replica failed: %v", err)
 	}
@@ -268,9 +278,11 @@ func TestProviderError(t *testing.T) {
 	c := needle.New()
 
 	expectedErr := errors.New("provider error")
-	err := needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
-		return nil, expectedErr
-	})
+	err := needle.Provide(
+		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			return nil, expectedErr
+		},
+	)
 	if err != nil {
 		t.Fatalf("Provide failed: %v", err)
 	}
@@ -333,9 +345,11 @@ func TestInvokeWithContext(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
-		return &Config{Port: 8080}, nil
-	})
+	err := needle.Provide(
+		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			return &Config{Port: 8080}, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("Provide failed: %v", err)
 	}
