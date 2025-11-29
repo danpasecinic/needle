@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"sync"
+
+	"github.com/danpasecinic/needle/internal/scope"
 )
 
 type ProviderFunc func(ctx context.Context, r Resolver) (any, error)
@@ -22,6 +24,9 @@ type ServiceEntry struct {
 	Dependencies []string
 	OnStart      []Hook
 	OnStop       []Hook
+	Scope        scope.Scope
+	PoolSize     int
+	pool         chan any
 }
 
 type Registry struct {
@@ -190,4 +195,59 @@ func (r *Registry) AllEntries() []*ServiceEntry {
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func (r *Registry) SetScope(key string, s scope.Scope) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entry, exists := r.services[key]; exists {
+		entry.Scope = s
+	}
+}
+
+func (r *Registry) SetPoolSize(key string, size int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entry, exists := r.services[key]; exists {
+		entry.PoolSize = size
+		if size > 0 {
+			entry.pool = make(chan any, size)
+		}
+	}
+}
+
+func (r *Registry) AcquireFromPool(key string) (any, bool) {
+	r.mu.RLock()
+	entry, exists := r.services[key]
+	r.mu.RUnlock()
+
+	if !exists || entry.pool == nil {
+		return nil, false
+	}
+
+	select {
+	case instance := <-entry.pool:
+		return instance, true
+	default:
+		return nil, false
+	}
+}
+
+func (r *Registry) ReleaseToPool(key string, instance any) bool {
+	r.mu.RLock()
+	entry, exists := r.services[key]
+	r.mu.RUnlock()
+
+	if !exists || entry.pool == nil {
+		return false
+	}
+
+	select {
+	case entry.pool <- instance:
+		return true
+	default:
+		return false
+	}
 }

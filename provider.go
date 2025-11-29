@@ -5,6 +5,7 @@ import (
 
 	"github.com/danpasecinic/needle/internal/container"
 	"github.com/danpasecinic/needle/internal/reflect"
+	"github.com/danpasecinic/needle/internal/scope"
 )
 
 type Provider[T any] func(ctx context.Context, r Resolver) (T, error)
@@ -16,6 +17,8 @@ type providerConfig struct {
 	dependencies []string
 	onStart      []container.Hook
 	onStop       []container.Hook
+	scope        scope.Scope
+	poolSize     int
 }
 
 func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) error {
@@ -43,6 +46,13 @@ func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) 
 	}
 	for _, hook := range cfg.onStop {
 		c.internal.AddOnStop(key, hook)
+	}
+
+	if cfg.scope != scope.Singleton {
+		c.internal.SetScope(key, cfg.scope)
+	}
+	if cfg.poolSize > 0 {
+		c.internal.SetPoolSize(key, cfg.poolSize)
 	}
 
 	return nil
@@ -104,5 +114,18 @@ func WithOnStart(hook Hook) ProviderOption {
 func WithOnStop(hook Hook) ProviderOption {
 	return func(cfg *providerConfig) {
 		cfg.onStop = append(cfg.onStop, container.Hook(hook))
+	}
+}
+
+func WithScope(s Scope) ProviderOption {
+	return func(cfg *providerConfig) {
+		cfg.scope = s
+	}
+}
+
+func WithPoolSize(size int) ProviderOption {
+	return func(cfg *providerConfig) {
+		cfg.scope = scope.Pooled
+		cfg.poolSize = size
 	}
 }
