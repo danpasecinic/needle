@@ -12,12 +12,16 @@ type Resolver interface {
 	Has(key string) bool
 }
 
+type Hook func(ctx context.Context) error
+
 type ServiceEntry struct {
 	Key          string
 	Provider     ProviderFunc
 	Instance     any
 	Instantiated bool
 	Dependencies []string
+	OnStart      []Hook
+	OnStop       []Hook
 }
 
 type Registry struct {
@@ -149,4 +153,41 @@ func (r *Registry) AllDependencies() map[string][]string {
 		deps[key] = d
 	}
 	return deps
+}
+
+func (r *Registry) AddOnStart(key string, hook Hook) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entry, exists := r.services[key]; exists {
+		entry.OnStart = append(entry.OnStart, hook)
+	}
+}
+
+func (r *Registry) AddOnStop(key string, hook Hook) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entry, exists := r.services[key]; exists {
+		entry.OnStop = append(entry.OnStop, hook)
+	}
+}
+
+func (r *Registry) GetEntry(key string) (*ServiceEntry, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	entry, exists := r.services[key]
+	return entry, exists
+}
+
+func (r *Registry) AllEntries() []*ServiceEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	entries := make([]*ServiceEntry, 0, len(r.services))
+	for _, entry := range r.services {
+		entries = append(entries, entry)
+	}
+	return entries
 }
