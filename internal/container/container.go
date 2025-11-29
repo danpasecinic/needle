@@ -246,8 +246,8 @@ func (c *Container) resolvePooled(ctx context.Context, key string, entry *Servic
 	return instance, nil
 }
 
-func (c *Container) Release(key string, instance any) {
-	c.registry.ReleaseToPool(key, instance)
+func (c *Container) Release(key string, instance any) bool {
+	return c.registry.ReleaseToPool(key, instance)
 }
 
 func (c *Container) Has(key string) bool {

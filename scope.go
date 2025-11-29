@@ -20,6 +20,6 @@ func WithRequestScope(ctx context.Context) context.Context {
 	return container.WithRequestScope(ctx)
 }
 
-func (c *Container) Release(key string, instance any) {
-	c.internal.Release(key, instance)
+func (c *Container) Release(key string, instance any) bool {
+	return c.internal.Release(key, instance)
 }
