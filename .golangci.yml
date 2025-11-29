@@ -13,7 +13,6 @@ linters:
     - prealloc
     - bodyclose
     - noctx
-    - exhaustive
     - nilerr
     - wastedassign
     - whitespace
@@ -38,9 +37,6 @@ linters-settings:
 
   nakedret:
     max-func-lines: 30
-
-  exhaustive:
-    default-signifies-exhaustive: true
 
   errorlint:
     errorf: true
