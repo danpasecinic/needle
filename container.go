@@ -16,7 +16,11 @@ type Container struct {
 }
 
 type containerConfig struct {
-	logger *slog.Logger
+	logger    *slog.Logger
+	onResolve []ResolveHook
+	onProvide []ProvideHook
+	onStart   []StartHook
+	onStop    []StopHook
 }
 
 func newContainer(opts ...Option) *Container {
