@@ -115,14 +115,23 @@ func (c *Container) RegisterValue(key string, value any) error {
 	}
 
 	c.graph.AddNode(key, nil)
+
+	for _, hook := range c.onProvide {
+		hook(key)
+	}
+
 	return nil
 }
 
 func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
+	start := time.Now()
+
 	c.resolvingMu.Lock()
 	if c.resolving[key] {
 		c.resolvingMu.Unlock()
-		return nil, fmt.Errorf("circular resolution detected for: %s", key)
+		err := fmt.Errorf("circular resolution detected for: %s", key)
+		c.callResolveHooks(key, time.Since(start), err)
+		return nil, err
 	}
 	c.resolving[key] = true
 	c.resolvingMu.Unlock()
@@ -138,10 +147,20 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 	c.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("service not found: %s", key)
+		err := fmt.Errorf("service not found: %s", key)
+		c.callResolveHooks(key, time.Since(start), err)
+		return nil, err
 	}
 
-	return c.resolveWithScope(ctx, key, entry)
+	result, err := c.resolveWithScope(ctx, key, entry)
+	c.callResolveHooks(key, time.Since(start), err)
+	return result, err
+}
+
+func (c *Container) callResolveHooks(key string, duration time.Duration, err error) {
+	for _, hook := range c.onResolve {
+		hook(key, duration, err)
+	}
 }
 
 func (c *Container) resolveWithScope(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
