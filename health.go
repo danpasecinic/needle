@@ -30,7 +30,7 @@ type ReadinessChecker interface {
 }
 
 func (c *Container) Live(ctx context.Context) error {
-	reports := c.checkHealth(ctx, true)
+	reports := c.checkHealth(ctx)
 	for _, r := range reports {
 		if r.Status == HealthStatusDown {
 			return errHealthCheckFailed(r.Name, r.Error)
@@ -50,10 +50,10 @@ func (c *Container) Ready(ctx context.Context) error {
 }
 
 func (c *Container) Health(ctx context.Context) []HealthReport {
-	return c.checkHealth(ctx, false)
+	return c.checkHealth(ctx)
 }
 
-func (c *Container) checkHealth(ctx context.Context, failFast bool) []HealthReport {
+func (c *Container) checkHealth(ctx context.Context) []HealthReport {
 	keys := c.internal.Keys()
 	var reports []HealthReport
 	var mu sync.Mutex
