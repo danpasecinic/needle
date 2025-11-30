@@ -23,6 +23,9 @@ const (
 	ErrCodeTimeout
 	ErrCodeContainerNotStarted
 	ErrCodeContainerAlreadyStarted
+	ErrCodeModuleApplyFailed
+	ErrCodeModuleInvalidProvider
+	ErrCodeDecoratorFailed
 )
 
 var codeNames = map[ErrorCode]string{
@@ -40,6 +43,9 @@ var codeNames = map[ErrorCode]string{
 	ErrCodeTimeout:                 "TIMEOUT",
 	ErrCodeContainerNotStarted:     "CONTAINER_NOT_STARTED",
 	ErrCodeContainerAlreadyStarted: "CONTAINER_ALREADY_STARTED",
+	ErrCodeModuleApplyFailed:       "MODULE_APPLY_FAILED",
+	ErrCodeModuleInvalidProvider:   "MODULE_INVALID_PROVIDER",
+	ErrCodeDecoratorFailed:         "DECORATOR_FAILED",
 }
 
 func (c ErrorCode) String() string {
