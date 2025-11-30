@@ -10,25 +10,25 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-func WithOnResolve(hook ResolveHook) Option {
+func WithResolveObserver(hook ResolveHook) Option {
 	return func(cfg *containerConfig) {
 		cfg.onResolve = append(cfg.onResolve, hook)
 	}
 }
 
-func WithOnProvide(hook ProvideHook) Option {
+func WithProvideObserver(hook ProvideHook) Option {
 	return func(cfg *containerConfig) {
 		cfg.onProvide = append(cfg.onProvide, hook)
 	}
 }
 
-func WithOnStart(hook StartHook) Option {
+func WithStartObserver(hook StartHook) Option {
 	return func(cfg *containerConfig) {
 		cfg.onStart = append(cfg.onStart, hook)
 	}
 }
 
-func WithOnStop(hook StopHook) Option {
+func WithStopObserver(hook StopHook) Option {
 	return func(cfg *containerConfig) {
 		cfg.onStop = append(cfg.onStop, hook)
 	}
