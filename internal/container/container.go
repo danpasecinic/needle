@@ -95,6 +95,10 @@ func (c *Container) Register(key string, provider ProviderFunc, dependencies []s
 		return fmt.Errorf("circular dependency detected: %v", cyclePath)
 	}
 
+	for _, hook := range c.onProvide {
+		hook(key)
+	}
+
 	return nil
 }
 
