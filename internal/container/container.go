@@ -20,6 +20,8 @@ const (
 	StateStopped
 )
 
+type DecoratorFunc func(ctx context.Context, r Resolver, instance any) (any, error)
+
 type Container struct {
 	mu       sync.RWMutex
 	registry *Registry
@@ -29,6 +31,9 @@ type Container struct {
 
 	resolving   map[string]bool
 	resolvingMu sync.Mutex
+
+	decorators   map[string][]DecoratorFunc
+	decoratorsMu sync.RWMutex
 }
 
 type Config struct {
@@ -42,10 +47,11 @@ func New(cfg *Config) *Container {
 	}
 
 	return &Container{
-		registry:  NewRegistry(),
-		graph:     graph.New(),
-		logger:    logger,
-		resolving: make(map[string]bool),
+		registry:   NewRegistry(),
+		graph:      graph.New(),
+		logger:     logger,
+		resolving:  make(map[string]bool),
+		decorators: make(map[string][]DecoratorFunc),
 	}
 }
 
@@ -146,6 +152,11 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}
 
+	instance, err = c.applyDecorators(ctx, key, instance)
+	if err != nil {
+		return nil, err
+	}
+
 	c.registry.SetInstance(key, instance)
 	return instance, nil
 }
@@ -162,7 +173,7 @@ func (c *Container) resolveTransient(ctx context.Context, key string, entry *Ser
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}
 
-	return instance, nil
+	return c.applyDecorators(ctx, key, instance)
 }
 
 type requestScopeKey struct{}
@@ -223,6 +234,11 @@ func (c *Container) resolveRequest(ctx context.Context, key string, entry *Servi
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}
 
+	instance, err = c.applyDecorators(ctx, key, instance)
+	if err != nil {
+		return nil, err
+	}
+
 	rs.Set(key, instance)
 	return instance, nil
 }
@@ -243,7 +259,7 @@ func (c *Container) resolvePooled(ctx context.Context, key string, entry *Servic
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}
 
-	return instance, nil
+	return c.applyDecorators(ctx, key, instance)
 }
 
 func (c *Container) Release(key string, instance any) bool {
@@ -393,4 +409,31 @@ func (c *Container) SetScope(key string, s scope.Scope) {
 
 func (c *Container) SetPoolSize(key string, size int) {
 	c.registry.SetPoolSize(key, size)
+}
+
+func (c *Container) AddDecorator(key string, decorator DecoratorFunc) {
+	c.decoratorsMu.Lock()
+	defer c.decoratorsMu.Unlock()
+
+	c.decorators[key] = append(c.decorators[key], decorator)
+}
+
+func (c *Container) applyDecorators(ctx context.Context, key string, instance any) (any, error) {
+	c.decoratorsMu.RLock()
+	decorators := c.decorators[key]
+	c.decoratorsMu.RUnlock()
+
+	if len(decorators) == 0 {
+		return instance, nil
+	}
+
+	var err error
+	for _, decorator := range decorators {
+		instance, err = decorator(ctx, c, instance)
+		if err != nil {
+			return nil, fmt.Errorf("decorator failed for %s: %w", key, err)
+		}
+	}
+
+	return instance, nil
 }
