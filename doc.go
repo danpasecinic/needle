@@ -54,11 +54,44 @@
 //
 // Group related providers into modules:
 //
-//	var HTTPModule = needle.NewModule("http").
-//	    Provide(NewServer, NewRouter).
-//	    Invoke(RegisterRoutes)
+//	var ConfigModule = needle.NewModule("config")
+//	needle.ModuleProvideValue(ConfigModule, &Config{Port: 8080})
 //
-//	c.Apply(HTTPModule.Export())
+//	var HTTPModule = needle.NewModule("http")
+//	needle.ModuleProvide(HTTPModule, NewServer)
+//	needle.ModuleProvide(HTTPModule, NewRouter)
+//
+//	c.Apply(ConfigModule, HTTPModule)
+//
+// Modules can include other modules:
+//
+//	var AppModule = needle.NewModule("app").
+//	    Include(ConfigModule).
+//	    Include(HTTPModule)
+//
+// # Interface Binding
+//
+// Bind interfaces to concrete implementations:
+//
+//	needle.Bind[UserRepository, *PostgresUserRepo](c)
+//	needle.BindNamed[Cache, *RedisCache](c, "session")
+//
+// Or within modules:
+//
+//	needle.ModuleBind[UserRepository, *PostgresUserRepo](module)
+//
+// # Decorators
+//
+// Wrap services with cross-cutting concerns:
+//
+//	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, log *Logger) (*Logger, error) {
+//	    return log.Named("app"), nil
+//	})
+//
+// Decorators are applied in order and can be chained:
+//
+//	needle.Decorate(c, addMetrics)
+//	needle.Decorate(c, addTracing)
 //
 // # Scopes
 //

@@ -14,6 +14,9 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Singleton by default** - Efficient instance reuse
 - **Lifecycle management** - OnStart/OnStop hooks with proper ordering
 - **Multiple scopes** - Singleton, Transient, Request, and Pooled
+- **Modules** - Group related providers into reusable modules
+- **Interface binding** - Bind interfaces to concrete implementations
+- **Decorators** - Wrap services with cross-cutting concerns
 
 ## Installation
 
@@ -175,6 +178,80 @@ needle.Provide(c, provider, needle.WithPoolSize(10))
 
 // Release back to pool when done
 c.Release("*mypackage.MyService", instance)
+```
+
+### Modules
+
+```go
+// Create modules to group related providers
+var ConfigModule = needle.NewModule("config")
+needle.ModuleProvideValue(ConfigModule, &Config{Port: 8080})
+
+var DBModule = needle.NewModule("db")
+needle.ModuleProvide(DBModule, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+    cfg := needle.MustInvoke[*Config](c)
+    return &Database{Config: cfg}, nil
+})
+
+// Apply modules to container
+c.Apply(ConfigModule, DBModule)
+
+// Modules can include other modules
+var AppModule = needle.NewModule("app").
+    Include(ConfigModule).
+    Include(DBModule)
+
+c.Apply(AppModule)
+```
+
+### Interface Binding
+
+```go
+type UserRepository interface {
+    FindByID(id int) (*User, error)
+}
+
+type PostgresUserRepo struct {
+    DB *Database
+}
+
+func (r *PostgresUserRepo) FindByID(id int) (*User, error) { ... }
+
+// Bind interface to implementation
+needle.Bind[UserRepository, *PostgresUserRepo](c)
+
+// Now you can resolve by interface
+repo, _ := needle.Invoke[UserRepository](c)
+
+// Named bindings
+needle.BindNamed[Cache, *RedisCache](c, "session")
+cache, _ := needle.InvokeNamed[Cache](c, "session")
+
+// Within modules
+needle.ModuleBind[UserRepository, *PostgresUserRepo](module)
+```
+
+### Decorators
+
+```go
+// Wrap services with cross-cutting concerns
+needle.Decorate(c, func(ctx context.Context, r needle.Resolver, log *Logger) (*Logger, error) {
+    return log.Named("app"), nil
+})
+
+// Decorators are applied in order (chaining)
+needle.Decorate(c, addMetrics)   // Applied first
+needle.Decorate(c, addTracing)   // Applied second
+
+// Named decorators
+needle.DecorateNamed(c, "app", func(ctx context.Context, r needle.Resolver, log *Logger) (*Logger, error) {
+    return log.WithField("env", "production"), nil
+})
+
+// Within modules
+needle.ModuleDecorate(module, func(ctx context.Context, r needle.Resolver, svc *MyService) (*MyService, error) {
+    return &DecoratedService{base: svc}, nil
+})
 ```
 
 ## Dependency Chain Example

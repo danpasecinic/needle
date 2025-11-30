@@ -70,6 +70,10 @@ func TypeKeyNamed[T any](name string) string {
 	return TypeKey[T]() + "#" + name
 }
 
+func TypeKeyNamedFromValue(v any, name string) string {
+	return TypeKeyFromValue(v) + "#" + name
+}
+
 func IsNil(v any) bool {
 	if v == nil {
 		return true
