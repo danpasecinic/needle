@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/danpasecinic/needle/internal/graph"
 	"github.com/danpasecinic/needle/internal/scope"
@@ -34,10 +35,24 @@ type Container struct {
 
 	decorators   map[string][]DecoratorFunc
 	decoratorsMu sync.RWMutex
+
+	onResolve []ResolveHook
+	onProvide []ProvideHook
+	onStart   []StartHook
+	onStop    []StopHook
 }
 
+type ResolveHook func(key string, duration time.Duration, err error)
+type ProvideHook func(key string)
+type StartHook func(key string, duration time.Duration, err error)
+type StopHook func(key string, duration time.Duration, err error)
+
 type Config struct {
-	Logger *slog.Logger
+	Logger    *slog.Logger
+	OnResolve []ResolveHook
+	OnProvide []ProvideHook
+	OnStart   []StartHook
+	OnStop    []StopHook
 }
 
 func New(cfg *Config) *Container {
