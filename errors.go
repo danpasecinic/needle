@@ -168,6 +168,14 @@ func errShutdownFailed(serviceType string, cause error) *Error { //nolint:unused
 	).WithService(serviceType)
 }
 
+func errHealthCheckFailed(serviceType string, cause error) *Error {
+	return newError(
+		ErrCodeHealthCheckFailed,
+		fmt.Sprintf("health check failed for %s", serviceType),
+		cause,
+	).WithService(serviceType)
+}
+
 func IsNotFound(err error) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Code == ErrCodeServiceNotFound
@@ -201,4 +209,9 @@ func IsStartupFailed(err error) bool {
 func IsShutdownFailed(err error) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Code == ErrCodeShutdownFailed
+}
+
+func IsHealthCheckFailed(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Code == ErrCodeHealthCheckFailed
 }

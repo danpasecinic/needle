@@ -280,6 +280,13 @@ func (c *Container) Keys() []string {
 	return c.registry.Keys()
 }
 
+func (c *Container) GetInstance(key string) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.registry.GetInstance(key)
+}
+
 func (c *Container) Size() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
