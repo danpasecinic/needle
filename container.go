@@ -16,7 +16,11 @@ type Container struct {
 }
 
 type containerConfig struct {
-	logger *slog.Logger
+	logger    *slog.Logger
+	onResolve []ResolveHook
+	onProvide []ProvideHook
+	onStart   []StartHook
+	onStop    []StopHook
 }
 
 func newContainer(opts ...Option) *Container {
@@ -28,14 +32,29 @@ func newContainer(opts ...Option) *Container {
 		opt(cfg)
 	}
 
-	internal := container.New(
-		&container.Config{
-			Logger: cfg.logger,
-		},
-	)
+	internalCfg := &container.Config{
+		Logger: cfg.logger,
+	}
+
+	for _, h := range cfg.onResolve {
+		hook := h
+		internalCfg.OnResolve = append(internalCfg.OnResolve, container.ResolveHook(hook))
+	}
+	for _, h := range cfg.onProvide {
+		hook := h
+		internalCfg.OnProvide = append(internalCfg.OnProvide, container.ProvideHook(hook))
+	}
+	for _, h := range cfg.onStart {
+		hook := h
+		internalCfg.OnStart = append(internalCfg.OnStart, container.StartHook(hook))
+	}
+	for _, h := range cfg.onStop {
+		hook := h
+		internalCfg.OnStop = append(internalCfg.OnStop, container.StopHook(hook))
+	}
 
 	return &Container{
-		internal: internal,
+		internal: container.New(internalCfg),
 		config:   cfg,
 	}
 }

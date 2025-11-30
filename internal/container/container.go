@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/danpasecinic/needle/internal/graph"
 	"github.com/danpasecinic/needle/internal/scope"
@@ -34,10 +35,24 @@ type Container struct {
 
 	decorators   map[string][]DecoratorFunc
 	decoratorsMu sync.RWMutex
+
+	onResolve []ResolveHook
+	onProvide []ProvideHook
+	onStart   []StartHook
+	onStop    []StopHook
 }
 
+type ResolveHook func(key string, duration time.Duration, err error)
+type ProvideHook func(key string)
+type StartHook func(key string, duration time.Duration, err error)
+type StopHook func(key string, duration time.Duration, err error)
+
 type Config struct {
-	Logger *slog.Logger
+	Logger    *slog.Logger
+	OnResolve []ResolveHook
+	OnProvide []ProvideHook
+	OnStart   []StartHook
+	OnStop    []StopHook
 }
 
 func New(cfg *Config) *Container {
@@ -52,6 +67,10 @@ func New(cfg *Config) *Container {
 		logger:     logger,
 		resolving:  make(map[string]bool),
 		decorators: make(map[string][]DecoratorFunc),
+		onResolve:  cfg.OnResolve,
+		onProvide:  cfg.OnProvide,
+		onStart:    cfg.OnStart,
+		onStop:     cfg.OnStop,
 	}
 }
 
@@ -76,6 +95,10 @@ func (c *Container) Register(key string, provider ProviderFunc, dependencies []s
 		return fmt.Errorf("circular dependency detected: %v", cyclePath)
 	}
 
+	for _, hook := range c.onProvide {
+		hook(key)
+	}
+
 	return nil
 }
 
@@ -92,14 +115,23 @@ func (c *Container) RegisterValue(key string, value any) error {
 	}
 
 	c.graph.AddNode(key, nil)
+
+	for _, hook := range c.onProvide {
+		hook(key)
+	}
+
 	return nil
 }
 
 func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
+	start := time.Now()
+
 	c.resolvingMu.Lock()
 	if c.resolving[key] {
 		c.resolvingMu.Unlock()
-		return nil, fmt.Errorf("circular resolution detected for: %s", key)
+		err := fmt.Errorf("circular resolution detected for: %s", key)
+		c.callResolveHooks(key, time.Since(start), err)
+		return nil, err
 	}
 	c.resolving[key] = true
 	c.resolvingMu.Unlock()
@@ -115,10 +147,20 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 	c.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("service not found: %s", key)
+		err := fmt.Errorf("service not found: %s", key)
+		c.callResolveHooks(key, time.Since(start), err)
+		return nil, err
 	}
 
-	return c.resolveWithScope(ctx, key, entry)
+	result, err := c.resolveWithScope(ctx, key, entry)
+	c.callResolveHooks(key, time.Since(start), err)
+	return result, err
+}
+
+func (c *Container) callResolveHooks(key string, duration time.Duration, err error) {
+	for _, hook := range c.onResolve {
+		hook(key, duration, err)
+	}
 }
 
 func (c *Container) resolveWithScope(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
@@ -280,6 +322,13 @@ func (c *Container) Keys() []string {
 	return c.registry.Keys()
 }
 
+func (c *Container) GetInstance(key string) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.registry.GetInstance(key)
+}
+
 func (c *Container) Size() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -332,7 +381,10 @@ func (c *Container) Start(ctx context.Context) error {
 	}
 
 	for _, key := range order {
+		start := time.Now()
+
 		if _, err := c.Resolve(ctx, key); err != nil {
+			c.callStartHooks(key, time.Since(start), err)
 			return fmt.Errorf("failed to resolve %s during startup: %w", key, err)
 		}
 
@@ -341,11 +393,18 @@ func (c *Container) Start(ctx context.Context) error {
 			continue
 		}
 
+		var startErr error
 		for _, hook := range entry.OnStart {
 			c.logger.Debug("running OnStart hook", "service", key)
 			if err := hook(ctx); err != nil {
-				return fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+				startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+				break
 			}
+		}
+
+		c.callStartHooks(key, time.Since(start), startErr)
+		if startErr != nil {
+			return startErr
 		}
 	}
 
@@ -354,6 +413,12 @@ func (c *Container) Start(ctx context.Context) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+func (c *Container) callStartHooks(key string, duration time.Duration, err error) {
+	for _, hook := range c.onStart {
+		hook(key, duration, err)
+	}
 }
 
 func (c *Container) Stop(ctx context.Context) error {
@@ -377,12 +442,18 @@ func (c *Container) Stop(ctx context.Context) error {
 			continue
 		}
 
+		start := time.Now()
+		var stopErr error
+
 		for i := len(entry.OnStop) - 1; i >= 0; i-- {
 			c.logger.Debug("running OnStop hook", "service", key)
 			if err := entry.OnStop[i](ctx); err != nil {
-				errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
+				stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
+				errs = append(errs, stopErr)
 			}
 		}
+
+		c.callStopHooks(key, time.Since(start), stopErr)
 	}
 
 	c.mu.Lock()
@@ -393,6 +464,12 @@ func (c *Container) Stop(ctx context.Context) error {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}
 	return nil
+}
+
+func (c *Container) callStopHooks(key string, duration time.Duration, err error) {
+	for _, hook := range c.onStop {
+		hook(key, duration, err)
+	}
 }
 
 func (c *Container) AddOnStart(key string, hook Hook) {

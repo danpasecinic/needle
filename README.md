@@ -17,6 +17,8 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Modules** - Group related providers into reusable modules
 - **Interface binding** - Bind interfaces to concrete implementations
 - **Decorators** - Wrap services with cross-cutting concerns
+- **Health checks** - Liveness and readiness probes for Kubernetes
+- **Metrics observers** - Hook into resolve, provide, start, stop operations
 
 ## Installation
 
@@ -252,6 +254,62 @@ needle.DecorateNamed(c, "app", func(ctx context.Context, r needle.Resolver, log 
 needle.ModuleDecorate(module, func(ctx context.Context, r needle.Resolver, svc *MyService) (*MyService, error) {
     return &DecoratedService{base: svc}, nil
 })
+```
+
+### Health Checks
+
+```go
+// Implement HealthChecker for liveness probes
+type Database struct {
+    conn *sql.DB
+}
+
+func (d *Database) HealthCheck(ctx context.Context) error {
+    return d.conn.PingContext(ctx)
+}
+
+// Implement ReadinessChecker for readiness probes
+func (d *Database) ReadinessCheck(ctx context.Context) error {
+    // Check if database is ready to accept connections
+    return d.conn.PingContext(ctx)
+}
+
+// Check health status
+err := c.Live(ctx)           // Returns error if any service is unhealthy
+err := c.Ready(ctx)          // Returns error if any service is not ready
+reports := c.Health(ctx)     // Get detailed health reports with latency
+
+// Use with HTTP handlers for Kubernetes probes
+http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+    if err := c.Live(r.Context()); err != nil {
+        w.WriteHeader(http.StatusServiceUnavailable)
+        return
+    }
+    w.WriteHeader(http.StatusOK)
+})
+```
+
+### Metrics Observers
+
+```go
+// Hook into container operations for metrics (Prometheus, OpenTelemetry, etc.)
+c := needle.New(
+    needle.WithResolveObserver(func(key string, duration time.Duration, err error) {
+        resolveLatency.WithLabelValues(key).Observe(duration.Seconds())
+        if err != nil {
+            resolveErrors.WithLabelValues(key).Inc()
+        }
+    }),
+    needle.WithProvideObserver(func(key string) {
+        providedServices.WithLabelValues(key).Inc()
+    }),
+    needle.WithStartObserver(func(key string, duration time.Duration, err error) {
+        startLatency.WithLabelValues(key).Observe(duration.Seconds())
+    }),
+    needle.WithStopObserver(func(key string, duration time.Duration, err error) {
+        stopLatency.WithLabelValues(key).Observe(duration.Seconds())
+    }),
+)
 ```
 
 ## Dependency Chain Example

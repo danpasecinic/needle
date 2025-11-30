@@ -100,4 +100,37 @@
 //	needle.Provide(c, NewService, needle.WithScope(needle.Transient))
 //
 // Available scopes: Singleton (default), Transient, Request, Pooled.
+//
+// # Health Checks
+//
+// Services can implement health check interfaces:
+//
+//	type Database struct{}
+//	func (d *Database) HealthCheck(ctx context.Context) error { return d.Ping(ctx) }
+//	func (d *Database) ReadinessCheck(ctx context.Context) error { return d.Ready(ctx) }
+//
+// Check health status:
+//
+//	err := c.Live(ctx)           // Fails if any HealthChecker returns error
+//	err := c.Ready(ctx)          // Fails if any ReadinessChecker returns error
+//	reports := c.Health(ctx)     // Get detailed health reports
+//
+// # Metrics Observers
+//
+// Observe container operations for metrics integration:
+//
+//	c := needle.New(
+//	    needle.WithResolveObserver(func(key string, d time.Duration, err error) {
+//	        metrics.RecordResolve(key, d, err)
+//	    }),
+//	    needle.WithProvideObserver(func(key string) {
+//	        metrics.RecordProvide(key)
+//	    }),
+//	    needle.WithStartObserver(func(key string, d time.Duration, err error) {
+//	        metrics.RecordStart(key, d, err)
+//	    }),
+//	    needle.WithStopObserver(func(key string, d time.Duration, err error) {
+//	        metrics.RecordStop(key, d, err)
+//	    }),
+//	)
 package needle
