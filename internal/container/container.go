@@ -67,6 +67,10 @@ func New(cfg *Config) *Container {
 		logger:     logger,
 		resolving:  make(map[string]bool),
 		decorators: make(map[string][]DecoratorFunc),
+		onResolve:  cfg.OnResolve,
+		onProvide:  cfg.OnProvide,
+		onStart:    cfg.OnStart,
+		onStop:     cfg.OnStop,
 	}
 }
 

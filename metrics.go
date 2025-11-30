@@ -1,6 +1,8 @@
 package needle
 
-import "time"
+import (
+	"time"
+)
 
 type ResolveHook func(key string, duration time.Duration, err error)
 
