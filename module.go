@@ -87,11 +87,10 @@ func (m *Module) apply(c *Container) error {
 	}
 
 	for _, d := range m.decorators {
-		dec := d
 		c.internal.AddDecorator(
-			dec.key, func(ctx context.Context, r container.Resolver, instance any) (any, error) {
+			d.key, func(ctx context.Context, r container.Resolver, instance any) (any, error) {
 				resolver := &resolverAdapter{container: c}
-				return dec.decorator(ctx, resolver, instance)
+				return d.decorator(ctx, resolver, instance)
 			},
 		)
 	}
