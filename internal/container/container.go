@@ -381,7 +381,10 @@ func (c *Container) Start(ctx context.Context) error {
 	}
 
 	for _, key := range order {
+		start := time.Now()
+
 		if _, err := c.Resolve(ctx, key); err != nil {
+			c.callStartHooks(key, time.Since(start), err)
 			return fmt.Errorf("failed to resolve %s during startup: %w", key, err)
 		}
 
@@ -390,11 +393,18 @@ func (c *Container) Start(ctx context.Context) error {
 			continue
 		}
 
+		var startErr error
 		for _, hook := range entry.OnStart {
 			c.logger.Debug("running OnStart hook", "service", key)
 			if err := hook(ctx); err != nil {
-				return fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+				startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+				break
 			}
+		}
+
+		c.callStartHooks(key, time.Since(start), startErr)
+		if startErr != nil {
+			return startErr
 		}
 	}
 
@@ -403,6 +413,12 @@ func (c *Container) Start(ctx context.Context) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+func (c *Container) callStartHooks(key string, duration time.Duration, err error) {
+	for _, hook := range c.onStart {
+		hook(key, duration, err)
+	}
 }
 
 func (c *Container) Stop(ctx context.Context) error {
@@ -426,12 +442,18 @@ func (c *Container) Stop(ctx context.Context) error {
 			continue
 		}
 
+		start := time.Now()
+		var stopErr error
+
 		for i := len(entry.OnStop) - 1; i >= 0; i-- {
 			c.logger.Debug("running OnStop hook", "service", key)
 			if err := entry.OnStop[i](ctx); err != nil {
-				errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
+				stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
+				errs = append(errs, stopErr)
 			}
 		}
+
+		c.callStopHooks(key, time.Since(start), stopErr)
 	}
 
 	c.mu.Lock()
@@ -442,6 +464,12 @@ func (c *Container) Stop(ctx context.Context) error {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}
 	return nil
+}
+
+func (c *Container) callStopHooks(key string, duration time.Duration, err error) {
+	for _, hook := range c.onStop {
+		hook(key, duration, err)
+	}
 }
 
 func (c *Container) AddOnStart(key string, hook Hook) {
