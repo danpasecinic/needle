@@ -19,7 +19,7 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Decorators** - Wrap services with cross-cutting concerns
 - **Health checks** - Liveness and readiness probes for Kubernetes
 - **Metrics observers** - Hook into resolve, provide, start, stop operations
-- **Testing utilities** - Mock containers, test helpers, and assertions
+- **Optional dependencies** - Type-safe optional resolution with `Optional[T]`
 
 ## Installation
 
@@ -121,6 +121,53 @@ if needle.Has[*Config](c) {
 
 // Try to resolve (returns false if not found)
 svc, ok := needle.TryInvoke[*MyService](c)
+
+// Optional dependencies (returns Optional[T])
+opt := needle.InvokeOptional[*Cache](c)
+if opt.Present() {
+    cache := opt.Value()
+}
+```
+
+### Optional Dependencies
+
+```go
+// InvokeOptional returns Optional[T] instead of error
+opt := needle.InvokeOptional[*Cache](c)
+
+// Check if present
+if opt.Present() {
+    cache := opt.Value()
+    // use cache
+}
+
+// Get with boolean (like map access)
+cache, ok := opt.Get()
+
+// Provide default value if not present
+cache := needle.InvokeOptional[*Cache](c).OrElse(&DefaultCache{})
+
+// Lazy default (function only called if not present)
+cache := needle.InvokeOptional[*Cache](c).OrElseFunc(func() *Cache {
+    return NewExpensiveCache()
+})
+
+// Named optional
+cache := needle.InvokeOptionalNamed[*Cache](c, "redis").OrElse(nil)
+
+// Use in providers for optional dependencies
+needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
+    // Cache is optional - service works without it
+    cache := needle.InvokeOptional[*Cache](c).OrElse(nil)
+
+    // Metrics is optional - use no-op if not configured
+    metrics := needle.InvokeOptional[*Metrics](c).OrElseFunc(NewNoOpMetrics)
+
+    return &UserService{
+        Cache:   cache,
+        Metrics: metrics,
+    }, nil
+})
 ```
 
 ### With Context
@@ -312,54 +359,6 @@ c := needle.New(
     }),
 )
 ```
-
-### Testing Utilities
-
-```go
-import "github.com/danpasecinic/needle/needletest"
-
-func TestUserService(t *testing.T) {
-    // Create test container with auto-cleanup
-    tc := needletest.New(t)
-
-    // Provide dependencies (fails test on error)
-    needletest.MustProvideValue(tc, &Config{DatabaseURL: "test://localhost"})
-    needletest.MustProvide(tc, NewDatabase)
-    needletest.MustProvide(tc, NewUserRepository)
-
-    // Replace with mock for testing
-    mockRepo := &MockUserRepository{
-        FindByIDFn: func(id int) (*User, error) {
-            return &User{ID: id, Name: "Test User"}, nil
-        },
-    }
-    needletest.Replace[UserRepository](tc, mockRepo)
-
-    // Assert service exists
-    needletest.AssertHas[*Config](tc)
-
-    // Invoke with test failure on error
-    svc := needletest.MustInvoke[*UserService](tc)
-
-    // Start/stop with test failure on error
-    tc.RequireStart(context.Background())
-    defer tc.RequireStop(context.Background())
-
-    // Validate dependency graph
-    tc.RequireValidate()
-}
-```
-
-**Available test helpers:**
-
-- `needletest.New(t)` - Create test container with auto-cleanup
-- `needletest.MustProvide[T]` / `needletest.MustProvideValue[T]` - Provide or fail test
-- `needletest.MustInvoke[T]` / `needletest.MustInvokeNamed[T]` - Invoke or fail test
-- `needletest.Replace[T]` / `needletest.ReplaceNamed[T]` - Replace provider with mock
-- `needletest.ReplaceProvider[T]` - Replace with custom provider function
-- `needletest.AssertHas[T]` / `needletest.AssertNotHas[T]` - Assert service existence
-- `tc.RequireStart` / `tc.RequireStop` - Start/stop or fail test
-- `tc.RequireValidate` - Validate or fail test
 
 ## Dependency Chain Example
 

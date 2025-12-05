@@ -36,6 +36,23 @@
 //	svc, err := needle.Invoke[*Service](c)   // Returns value and error
 //	svc := needle.MustInvoke[*Service](c)    // Panics on error
 //
+// # Optional Dependencies
+//
+// Use Optional for dependencies that may or may not be registered:
+//
+//	opt := needle.InvokeOptional[*Cache](c)
+//	if opt.Present() {
+//	    cache := opt.Value()
+//	}
+//
+//	// Or use OrElse for default values
+//	cache := needle.InvokeOptional[*Cache](c).OrElse(defaultCache)
+//
+//	// OrElseFunc for lazy defaults
+//	cache := needle.InvokeOptional[*Cache](c).OrElseFunc(func() *Cache {
+//	    return NewDefaultCache()
+//	})
+//
 // # Lifecycle
 //
 // Services can participate in the container's lifecycle:
@@ -133,22 +150,4 @@
 //	        metrics.RecordStop(key, d, err)
 //	    }),
 //	)
-//
-// # Testing
-//
-// The needletest package provides testing utilities:
-//
-//	func TestMyService(t *testing.T) {
-//	    tc := needletest.New(t)  // Auto-cleanup on test end
-//
-//	    needletest.MustProvideValue(tc, &Config{Port: 8080})
-//	    needletest.MustProvide(tc, NewDatabase)
-//
-//	    // Replace with mock for testing
-//	    needletest.Replace(tc, &MockDatabase{})
-//
-//	    // Assert and invoke
-//	    needletest.AssertHas[*Config](tc)
-//	    db := needletest.MustInvoke[*Database](tc)
-//	}
 package needle
