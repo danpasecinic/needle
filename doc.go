@@ -36,6 +36,23 @@
 //	svc, err := needle.Invoke[*Service](c)   // Returns value and error
 //	svc := needle.MustInvoke[*Service](c)    // Panics on error
 //
+// # Optional Dependencies
+//
+// Use Optional for dependencies that may or may not be registered:
+//
+//	opt := needle.InvokeOptional[*Cache](c)
+//	if opt.Present() {
+//	    cache := opt.Value()
+//	}
+//
+//	// Or use OrElse for default values
+//	cache := needle.InvokeOptional[*Cache](c).OrElse(defaultCache)
+//
+//	// OrElseFunc for lazy defaults
+//	cache := needle.InvokeOptional[*Cache](c).OrElseFunc(func() *Cache {
+//	    return NewDefaultCache()
+//	})
+//
 // # Lifecycle
 //
 // Services can participate in the container's lifecycle:
