@@ -377,3 +377,250 @@ type testServer struct{}
 type testService struct {
 	name string
 }
+
+func TestContainer_LazyProvider(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+
+	var instantiated, started atomic.Bool
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			instantiated.Store(true)
+			return &testService{name: "lazy"}, nil
+		},
+		WithLazy(),
+		WithOnStart(
+			func(ctx context.Context) error {
+				started.Store(true)
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	if err := c.Start(ctx); err != nil {
+		t.Fatalf("failed to start: %v", err)
+	}
+
+	if instantiated.Load() {
+		t.Error("lazy service should not be instantiated during Start")
+	}
+	if started.Load() {
+		t.Error("lazy service OnStart should not run during Start")
+	}
+
+	_, err := Invoke[*testService](c)
+	if err != nil {
+		t.Fatalf("failed to invoke: %v", err)
+	}
+
+	if !instantiated.Load() {
+		t.Error("lazy service should be instantiated after Invoke")
+	}
+	if !started.Load() {
+		t.Error("lazy service OnStart should run after first Invoke")
+	}
+
+	_ = c.Stop(ctx)
+}
+
+func TestContainer_LazyProviderOnStartRunsOnce(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+
+	var startCount atomic.Int32
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			return &testService{name: "lazy"}, nil
+		},
+		WithLazy(),
+		WithOnStart(
+			func(ctx context.Context) error {
+				startCount.Add(1)
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+
+	_, _ = Invoke[*testService](c)
+	_, _ = Invoke[*testService](c)
+	_, _ = Invoke[*testService](c)
+
+	if startCount.Load() != 1 {
+		t.Errorf("expected OnStart to run once, ran %d times", startCount.Load())
+	}
+
+	_ = c.Stop(ctx)
+}
+
+func TestContainer_LazyProviderStopHook(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+
+	var stopped atomic.Bool
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			return &testService{name: "lazy"}, nil
+		},
+		WithLazy(),
+		WithOnStop(
+			func(ctx context.Context) error {
+				stopped.Store(true)
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+	_, _ = Invoke[*testService](c)
+	_ = c.Stop(ctx)
+
+	if !stopped.Load() {
+		t.Error("lazy service OnStop should run during Stop")
+	}
+}
+
+func TestContainer_LazyProviderNotInstantiatedNoStop(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+
+	var stopped atomic.Bool
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			return &testService{name: "lazy"}, nil
+		},
+		WithLazy(),
+		WithOnStop(
+			func(ctx context.Context) error {
+				stopped.Store(true)
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+	_ = c.Stop(ctx)
+
+	if stopped.Load() {
+		t.Error("lazy service OnStop should not run if never instantiated")
+	}
+}
+
+func TestContainer_LazyProviderBeforeStart(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+
+	var started atomic.Bool
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			return &testService{name: "lazy"}, nil
+		},
+		WithLazy(),
+		WithOnStart(
+			func(ctx context.Context) error {
+				started.Store(true)
+				return nil
+			},
+		),
+	)
+
+	_, err := Invoke[*testService](c)
+	if err != nil {
+		t.Fatalf("failed to invoke: %v", err)
+	}
+
+	if started.Load() {
+		t.Error("lazy service OnStart should not run before container Start")
+	}
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+
+	if started.Load() {
+		t.Error("lazy service OnStart should not run if already instantiated before Start")
+	}
+}
+
+func TestContainer_ShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	c := New(WithShutdownTimeout(100 * time.Millisecond))
+
+	var stopped atomic.Bool
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			return &testService{name: "slow"}, nil
+		},
+		WithOnStop(
+			func(ctx context.Context) error {
+				select {
+				case <-time.After(500 * time.Millisecond):
+					stopped.Store(true)
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		),
+	)
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+
+	err := c.Stop(ctx)
+	if err == nil {
+		t.Error("expected timeout error")
+	}
+
+	if stopped.Load() {
+		t.Error("slow service should not have completed stop")
+	}
+}
+
+func TestContainer_ShutdownTimeoutNotSet(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+
+	var stopped atomic.Bool
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testService, error) {
+			return &testService{name: "test"}, nil
+		},
+		WithOnStop(
+			func(ctx context.Context) error {
+				stopped.Store(true)
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+
+	err := c.Stop(ctx)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if !stopped.Load() {
+		t.Error("service should have stopped")
+	}
+}
