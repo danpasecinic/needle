@@ -107,10 +107,6 @@ func (c *Container) Run(ctx context.Context) error {
 	return c.Stop(context.Background())
 }
 
-func (c *Container) Internal() *container.Container {
-	return c.internal
-}
-
 func errValidationFailed(cause error) *Error {
 	return newError(ErrCodeValidationFailed, "container validation failed", cause)
 }
