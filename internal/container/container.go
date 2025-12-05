@@ -381,6 +381,10 @@ func (c *Container) Start(ctx context.Context) error {
 	}
 
 	for _, key := range order {
+		if c.registry.IsLazy(key) {
+			continue
+		}
+
 		start := time.Now()
 
 		if _, err := c.Resolve(ctx, key); err != nil {
@@ -402,6 +406,7 @@ func (c *Container) Start(ctx context.Context) error {
 			}
 		}
 
+		c.registry.SetStartRan(key)
 		c.callStartHooks(key, time.Since(start), startErr)
 		if startErr != nil {
 			return startErr
@@ -486,6 +491,10 @@ func (c *Container) SetScope(key string, s scope.Scope) {
 
 func (c *Container) SetPoolSize(key string, size int) {
 	c.registry.SetPoolSize(key, size)
+}
+
+func (c *Container) SetLazy(key string, lazy bool) {
+	c.registry.SetLazy(key, lazy)
 }
 
 func (c *Container) AddDecorator(key string, decorator DecoratorFunc) {

@@ -27,6 +27,8 @@ type ServiceEntry struct {
 	Scope        scope.Scope
 	PoolSize     int
 	pool         chan any
+	Lazy         bool
+	StartRan     bool
 }
 
 type Registry struct {
@@ -249,5 +251,33 @@ func (r *Registry) ReleaseToPool(key string, instance any) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func (r *Registry) SetLazy(key string, lazy bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entry, exists := r.services[key]; exists {
+		entry.Lazy = lazy
+	}
+}
+
+func (r *Registry) IsLazy(key string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if entry, exists := r.services[key]; exists {
+		return entry.Lazy
+	}
+	return false
+}
+
+func (r *Registry) SetStartRan(key string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entry, exists := r.services[key]; exists {
+		entry.StartRan = true
 	}
 }
