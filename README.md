@@ -20,7 +20,6 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Health checks** - Liveness and readiness probes for Kubernetes
 - **Metrics observers** - Hook into resolve, provide, start, stop operations
 - **Optional dependencies** - Type-safe optional resolution with `Optional[T]`
-- **Testing utilities** - Mock containers, test helpers, and assertions
 
 ## Installation
 
@@ -360,54 +359,6 @@ c := needle.New(
     }),
 )
 ```
-
-### Testing Utilities
-
-```go
-import "github.com/danpasecinic/needle/needletest"
-
-func TestUserService(t *testing.T) {
-    // Create test container with auto-cleanup
-    tc := needletest.New(t)
-
-    // Provide dependencies (fails test on error)
-    needletest.MustProvideValue(tc, &Config{DatabaseURL: "test://localhost"})
-    needletest.MustProvide(tc, NewDatabase)
-    needletest.MustProvide(tc, NewUserRepository)
-
-    // Replace with mock for testing
-    mockRepo := &MockUserRepository{
-        FindByIDFn: func(id int) (*User, error) {
-            return &User{ID: id, Name: "Test User"}, nil
-        },
-    }
-    needletest.Replace[UserRepository](tc, mockRepo)
-
-    // Assert service exists
-    needletest.AssertHas[*Config](tc)
-
-    // Invoke with test failure on error
-    svc := needletest.MustInvoke[*UserService](tc)
-
-    // Start/stop with test failure on error
-    tc.RequireStart(context.Background())
-    defer tc.RequireStop(context.Background())
-
-    // Validate dependency graph
-    tc.RequireValidate()
-}
-```
-
-**Available test helpers:**
-
-- `needletest.New(t)` - Create test container with auto-cleanup
-- `needletest.MustProvide[T]` / `needletest.MustProvideValue[T]` - Provide or fail test
-- `needletest.MustInvoke[T]` / `needletest.MustInvokeNamed[T]` - Invoke or fail test
-- `needletest.Replace[T]` / `needletest.ReplaceNamed[T]` - Replace provider with mock
-- `needletest.ReplaceProvider[T]` - Replace with custom provider function
-- `needletest.AssertHas[T]` / `needletest.AssertNotHas[T]` - Assert service existence
-- `tc.RequireStart` / `tc.RequireStop` - Start/stop or fail test
-- `tc.RequireValidate` - Validate or fail test
 
 ## Dependency Chain Example
 

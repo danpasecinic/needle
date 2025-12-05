@@ -150,22 +150,4 @@
 //	        metrics.RecordStop(key, d, err)
 //	    }),
 //	)
-//
-// # Testing
-//
-// The needletest package provides testing utilities:
-//
-//	func TestMyService(t *testing.T) {
-//	    tc := needletest.New(t)  // Auto-cleanup on test end
-//
-//	    needletest.MustProvideValue(tc, &Config{Port: 8080})
-//	    needletest.MustProvide(tc, NewDatabase)
-//
-//	    // Replace with mock for testing
-//	    needletest.Replace(tc, &MockDatabase{})
-//
-//	    // Assert and invoke
-//	    needletest.AssertHas[*Config](tc)
-//	    db := needletest.MustInvoke[*Database](tc)
-//	}
 package needle

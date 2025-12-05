@@ -386,3 +386,197 @@ func BenchmarkMustInvoke(b *testing.B) {
 		_ = needle.MustInvoke[*Config](c)
 	}
 }
+
+func TestOptionalPresent(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+	_ = needle.ProvideValue(c, &Config{Port: 8080, Host: "localhost"})
+
+	opt := needle.InvokeOptional[*Config](c)
+
+	if !opt.Present() {
+		t.Error("expected optional to be present")
+	}
+
+	cfg, ok := opt.Get()
+	if !ok {
+		t.Error("expected Get() to return true")
+	}
+	if cfg.Port != 8080 {
+		t.Errorf("expected port 8080, got %d", cfg.Port)
+	}
+
+	if opt.Value().Host != "localhost" {
+		t.Errorf("expected host localhost, got %s", opt.Value().Host)
+	}
+}
+
+func TestOptionalNotPresent(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+
+	opt := needle.InvokeOptional[*Config](c)
+
+	if opt.Present() {
+		t.Error("expected optional to not be present")
+	}
+
+	cfg, ok := opt.Get()
+	if ok {
+		t.Error("expected Get() to return false")
+	}
+	if cfg != nil {
+		t.Error("expected nil value")
+	}
+}
+
+func TestOptionalOrElse(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+
+	opt := needle.InvokeOptional[*Config](c)
+	defaultCfg := &Config{Port: 3000}
+
+	result := opt.OrElse(defaultCfg)
+	if result.Port != 3000 {
+		t.Errorf("expected port 3000, got %d", result.Port)
+	}
+
+	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	opt2 := needle.InvokeOptional[*Config](c)
+
+	result2 := opt2.OrElse(defaultCfg)
+	if result2.Port != 8080 {
+		t.Errorf("expected port 8080, got %d", result2.Port)
+	}
+}
+
+func TestOptionalOrElseFunc(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+	callCount := 0
+
+	opt := needle.InvokeOptional[*Config](c)
+	result := opt.OrElseFunc(func() *Config {
+		callCount++
+		return &Config{Port: 9000}
+	})
+
+	if result.Port != 9000 {
+		t.Errorf("expected port 9000, got %d", result.Port)
+	}
+	if callCount != 1 {
+		t.Errorf("expected func to be called once, got %d", callCount)
+	}
+
+	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	opt2 := needle.InvokeOptional[*Config](c)
+	result2 := opt2.OrElseFunc(func() *Config {
+		callCount++
+		return &Config{Port: 9000}
+	})
+
+	if result2.Port != 8080 {
+		t.Errorf("expected port 8080, got %d", result2.Port)
+	}
+	if callCount != 1 {
+		t.Errorf("expected func to not be called again, got %d", callCount)
+	}
+}
+
+func TestOptionalNamed(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+	_ = needle.ProvideNamedValue(c, "primary", &Config{Port: 5432})
+
+	opt := needle.InvokeOptionalNamed[*Config](c, "primary")
+	if !opt.Present() {
+		t.Error("expected primary config to be present")
+	}
+	if opt.Value().Port != 5432 {
+		t.Errorf("expected port 5432, got %d", opt.Value().Port)
+	}
+
+	optMissing := needle.InvokeOptionalNamed[*Config](c, "replica")
+	if optMissing.Present() {
+		t.Error("expected replica config to not be present")
+	}
+}
+
+func TestOptionalInProvider(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+
+	type Cache struct {
+		Enabled bool
+	}
+
+	type Service struct {
+		Cache *Cache
+	}
+
+	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
+		cacheOpt := needle.InvokeOptional[*Cache](c)
+		return &Service{
+			Cache: cacheOpt.OrElse(nil),
+		}, nil
+	})
+
+	svc := needle.MustInvoke[*Service](c)
+	if svc.Cache != nil {
+		t.Error("expected cache to be nil when not provided")
+	}
+}
+
+func TestOptionalInProviderWithValue(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+
+	type Cache struct {
+		Enabled bool
+	}
+
+	type Service struct {
+		Cache *Cache
+	}
+
+	_ = needle.ProvideValue(c, &Cache{Enabled: true})
+	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
+		cacheOpt := needle.InvokeOptional[*Cache](c)
+		return &Service{
+			Cache: cacheOpt.OrElse(nil),
+		}, nil
+	})
+
+	svc := needle.MustInvoke[*Service](c)
+	if svc.Cache == nil {
+		t.Error("expected cache to be present")
+	}
+	if !svc.Cache.Enabled {
+		t.Error("expected cache to be enabled")
+	}
+}
+
+func TestSomeNone(t *testing.T) {
+	t.Parallel()
+
+	some := needle.Some(&Config{Port: 8080})
+	if !some.Present() {
+		t.Error("Some should be present")
+	}
+	if some.Value().Port != 8080 {
+		t.Errorf("expected port 8080, got %d", some.Value().Port)
+	}
+
+	none := needle.None[*Config]()
+	if none.Present() {
+		t.Error("None should not be present")
+	}
+}
