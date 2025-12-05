@@ -18,7 +18,7 @@
 //	    return &Server{config: cfg}, nil
 //	})
 //
-//	c.Run()
+//	c.Run(ctx)
 //
 // # Providers
 //
@@ -57,15 +57,45 @@
 //
 // Services can participate in the container's lifecycle:
 //
-//	type Server struct{}
-//	func (s *Server) Start(ctx context.Context) error { ... }
-//	func (s *Server) Stop(ctx context.Context) error { ... }
+//	needle.Provide(c, NewServer,
+//	    needle.WithOnStart(func(ctx context.Context) error {
+//	        return server.Listen()
+//	    }),
+//	    needle.WithOnStop(func(ctx context.Context) error {
+//	        return server.Shutdown(ctx)
+//	    }),
+//	)
 //
-// Or use explicit hooks:
+//	c.Start(ctx)  // Starts all services in dependency order
+//	c.Stop(ctx)   // Stops all services in reverse order
+//	c.Run(ctx)    // Start + wait for signal + Stop
 //
-//	lc := needle.GetLifecycle(r)
-//	lc.OnStart(func(ctx context.Context) error { ... })
-//	lc.OnStop(func(ctx context.Context) error { ... })
+// # Lazy Providers
+//
+// Defer instantiation until first use:
+//
+//	needle.Provide(c, NewExpensiveService, needle.WithLazy())
+//
+// Lazy services are not instantiated during Start(). They are created on first
+// Invoke(), and their OnStart hooks run at that time if the container is running.
+//
+// # Shutdown Timeout
+//
+// Configure a deadline for graceful shutdown:
+//
+//	c := needle.New(needle.WithShutdownTimeout(30 * time.Second))
+//
+// The timeout applies to Stop() and is checked between service shutdowns.
+// Individual OnStop hooks receive the timeout context.
+//
+// # Debug Visualization
+//
+// Print the dependency graph for debugging:
+//
+//	c.PrintGraph()           // ASCII to stdout
+//	c.PrintGraphDOT()        // Graphviz DOT to stdout
+//	output := c.SprintGraph()
+//	info := c.Graph()        // Structured GraphInfo
 //
 // # Modules
 //
@@ -115,6 +145,8 @@
 // Control instance lifetime with scopes:
 //
 //	needle.Provide(c, NewService, needle.WithScope(needle.Transient))
+//	needle.Provide(c, NewService, needle.WithScope(needle.Request))
+//	needle.Provide(c, NewService, needle.WithPoolSize(10))
 //
 // Available scopes: Singleton (default), Transient, Request, Pooled.
 //
@@ -130,7 +162,7 @@
 //
 //	err := c.Live(ctx)           // Fails if any HealthChecker returns error
 //	err := c.Ready(ctx)          // Fails if any ReadinessChecker returns error
-//	reports := c.Health(ctx)     // Get detailed health reports
+//	reports := c.Health(ctx)     // Get detailed health reports with latency
 //
 // # Metrics Observers
 //

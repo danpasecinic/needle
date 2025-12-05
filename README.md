@@ -17,6 +17,9 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Modules** - Group related providers into reusable modules
 - **Interface binding** - Bind interfaces to concrete implementations
 - **Decorators** - Wrap services with cross-cutting concerns
+- **Lazy providers** - Defer instantiation until first use
+- **Shutdown timeout** - Configurable deadline for graceful shutdown
+- **Debug visualization** - Print dependency graphs in ASCII or DOT format
 - **Health checks** - Liveness and readiness probes for Kubernetes
 - **Metrics observers** - Hook into resolve, provide, start, stop operations
 - **Optional dependencies** - Type-safe optional resolution with `Optional[T]`
@@ -49,19 +52,15 @@ type Server struct {
 }
 
 func main() {
-    // Create container
     c := needle.New()
 
-    // Register a value
     needle.ProvideValue(c, &Config{Port: 8080})
 
-    // Register a provider with dependencies
     needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
         cfg := needle.MustInvoke[*Config](c)
         return &Server{Config: cfg}, nil
     })
 
-    // Resolve dependencies
     server := needle.MustInvoke[*Server](c)
     fmt.Printf("Server configured on port %d\n", server.Config.Port)
 }
@@ -72,26 +71,22 @@ func main() {
 ### Container
 
 ```go
-// Create a new container
 c := needle.New()
 c := needle.New(needle.WithLogger(slog.Default()))
+c := needle.New(needle.WithShutdownTimeout(30 * time.Second))
 
-// Validate the dependency graph
 err := c.Validate()
 ```
 
 ### Registering Providers
 
 ```go
-// Register a provider function
 needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*MyService, error) {
     return &MyService{}, nil
 })
 
-// Register an existing value
 needle.ProvideValue(c, &Config{Port: 8080})
 
-// Register with a name (for multiple implementations)
 needle.ProvideNamed(c, "primary", func(ctx context.Context, r needle.Resolver) (*DB, error) {
     return &DB{Host: "primary.db"}, nil
 })
@@ -104,25 +99,19 @@ needle.ProvideNamed(c, "replica", func(ctx context.Context, r needle.Resolver) (
 ### Resolving Dependencies
 
 ```go
-// Resolve with error handling
 svc, err := needle.Invoke[*MyService](c)
 
-// Resolve or panic
 svc := needle.MustInvoke[*MyService](c)
 
-// Resolve named service
 db, err := needle.InvokeNamed[*DB](c, "primary")
 db := needle.MustInvokeNamed[*DB](c, "replica")
 
-// Check if service exists
 if needle.Has[*Config](c) {
     // ...
 }
 
-// Try to resolve (returns false if not found)
 svc, ok := needle.TryInvoke[*MyService](c)
 
-// Optional dependencies (returns Optional[T])
 opt := needle.InvokeOptional[*Cache](c)
 if opt.Present() {
     cache := opt.Value()
@@ -132,35 +121,24 @@ if opt.Present() {
 ### Optional Dependencies
 
 ```go
-// InvokeOptional returns Optional[T] instead of error
 opt := needle.InvokeOptional[*Cache](c)
 
-// Check if present
 if opt.Present() {
     cache := opt.Value()
-    // use cache
 }
 
-// Get with boolean (like map access)
 cache, ok := opt.Get()
 
-// Provide default value if not present
 cache := needle.InvokeOptional[*Cache](c).OrElse(&DefaultCache{})
 
-// Lazy default (function only called if not present)
 cache := needle.InvokeOptional[*Cache](c).OrElseFunc(func() *Cache {
     return NewExpensiveCache()
 })
 
-// Named optional
 cache := needle.InvokeOptionalNamed[*Cache](c, "redis").OrElse(nil)
 
-// Use in providers for optional dependencies
 needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
-    // Cache is optional - service works without it
     cache := needle.InvokeOptional[*Cache](c).OrElse(nil)
-
-    // Metrics is optional - use no-op if not configured
     metrics := needle.InvokeOptional[*Metrics](c).OrElseFunc(NewNoOpMetrics)
 
     return &UserService{
@@ -182,7 +160,6 @@ svc := needle.MustInvokeCtx[*MyService](ctx, c)
 ### Lifecycle Management
 
 ```go
-// Register with lifecycle hooks
 needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
     return &Server{}, nil
 },
@@ -196,44 +173,123 @@ needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) 
     }),
 )
 
-// Start all services (in dependency order)
 err := c.Start(ctx)
 
-// Stop all services (in reverse dependency order)
 err := c.Stop(ctx)
 
-// Or use Run() to start and wait for shutdown signal
-err := c.Run(ctx) // Blocks until SIGINT/SIGTERM or context cancellation
+err := c.Run(ctx)
+```
+
+### Lazy Providers
+
+Lazy providers defer instantiation until first use:
+
+```go
+needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*ExpensiveService, error) {
+    return NewExpensiveService(), nil
+}, needle.WithLazy())
+
+c.Start(ctx)
+
+svc := needle.MustInvoke[*ExpensiveService](c)
+```
+
+With lazy providers:
+- The service is NOT instantiated during `Start()`
+- Instantiation happens on first `Invoke()`
+- `OnStart` hooks run after first instantiation (if container is running)
+- `OnStop` hooks still run during `Stop()` for instantiated services
+- If never invoked, no instantiation or lifecycle hooks occur
+
+### Shutdown Timeout
+
+Configure a deadline for graceful shutdown:
+
+```go
+c := needle.New(needle.WithShutdownTimeout(30 * time.Second))
+
+needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
+    return &Server{}, nil
+},
+    needle.WithOnStop(func(ctx context.Context) error {
+        select {
+        case <-time.After(60 * time.Second):
+            return nil
+        case <-ctx.Done():
+            return ctx.Err()
+        }
+    }),
+)
+
+c.Start(ctx)
+err := c.Stop(ctx)
+```
+
+### Debug Visualization
+
+Print the dependency graph for debugging:
+
+```go
+c.PrintGraph()
+
+output := c.SprintGraph()
+
+var buf bytes.Buffer
+c.FprintGraph(&buf)
+```
+
+Output format:
+```
+● *main.Config
+○ *main.Database ← *main.Config
+○ *main.Server ← *main.Database
+```
+- `●` = instantiated
+- `○` = not instantiated
+- `←` = depends on
+
+Generate Graphviz DOT format:
+
+```go
+c.PrintGraphDOT()
+
+output := c.SprintGraphDOT()
+
+var buf bytes.Buffer
+c.FprintGraphDOT(&buf)
+```
+
+Get structured graph info:
+
+```go
+info := c.Graph()
+for _, svc := range info.Services {
+    fmt.Printf("%s: deps=%v, instantiated=%v\n",
+        svc.Key, svc.Dependencies, svc.Instantiated)
+}
 ```
 
 ### Scopes
 
 ```go
-// Singleton (default) - one instance per container
 needle.Provide(c, provider)
 needle.Provide(c, provider, needle.WithScope(needle.Singleton))
 
-// Transient - new instance every time
 needle.Provide(c, provider, needle.WithScope(needle.Transient))
 
-// Request - one instance per request context
 needle.Provide(c, provider, needle.WithScope(needle.Request))
 
-// Use request scope
 ctx := needle.WithRequestScope(context.Background())
 svc, _ := needle.InvokeCtx[*MyService](ctx, c)
 
-// Pooled - reusable pool of instances
 needle.Provide(c, provider, needle.WithPoolSize(10))
 
-// Release back to pool when done
 c.Release("*mypackage.MyService", instance)
 ```
 
 ### Modules
 
 ```go
-// Create modules to group related providers
 var ConfigModule = needle.NewModule("config")
 needle.ModuleProvideValue(ConfigModule, &Config{Port: 8080})
 
@@ -243,10 +299,8 @@ needle.ModuleProvide(DBModule, func(ctx context.Context, r needle.Resolver) (*Da
     return &Database{Config: cfg}, nil
 })
 
-// Apply modules to container
 c.Apply(ConfigModule, DBModule)
 
-// Modules can include other modules
 var AppModule = needle.NewModule("app").
     Include(ConfigModule).
     Include(DBModule)
@@ -267,38 +321,30 @@ type PostgresUserRepo struct {
 
 func (r *PostgresUserRepo) FindByID(id int) (*User, error) { ... }
 
-// Bind interface to implementation
 needle.Bind[UserRepository, *PostgresUserRepo](c)
 
-// Now you can resolve by interface
 repo, _ := needle.Invoke[UserRepository](c)
 
-// Named bindings
 needle.BindNamed[Cache, *RedisCache](c, "session")
 cache, _ := needle.InvokeNamed[Cache](c, "session")
 
-// Within modules
 needle.ModuleBind[UserRepository, *PostgresUserRepo](module)
 ```
 
 ### Decorators
 
 ```go
-// Wrap services with cross-cutting concerns
 needle.Decorate(c, func(ctx context.Context, r needle.Resolver, log *Logger) (*Logger, error) {
     return log.Named("app"), nil
 })
 
-// Decorators are applied in order (chaining)
-needle.Decorate(c, addMetrics)   // Applied first
-needle.Decorate(c, addTracing)   // Applied second
+needle.Decorate(c, addMetrics)
+needle.Decorate(c, addTracing)
 
-// Named decorators
 needle.DecorateNamed(c, "app", func(ctx context.Context, r needle.Resolver, log *Logger) (*Logger, error) {
     return log.WithField("env", "production"), nil
 })
 
-// Within modules
 needle.ModuleDecorate(module, func(ctx context.Context, r needle.Resolver, svc *MyService) (*MyService, error) {
     return &DecoratedService{base: svc}, nil
 })
@@ -307,7 +353,6 @@ needle.ModuleDecorate(module, func(ctx context.Context, r needle.Resolver, svc *
 ### Health Checks
 
 ```go
-// Implement HealthChecker for liveness probes
 type Database struct {
     conn *sql.DB
 }
@@ -316,18 +361,14 @@ func (d *Database) HealthCheck(ctx context.Context) error {
     return d.conn.PingContext(ctx)
 }
 
-// Implement ReadinessChecker for readiness probes
 func (d *Database) ReadinessCheck(ctx context.Context) error {
-    // Check if database is ready to accept connections
     return d.conn.PingContext(ctx)
 }
 
-// Check health status
-err := c.Live(ctx)           // Returns error if any service is unhealthy
-err := c.Ready(ctx)          // Returns error if any service is not ready
-reports := c.Health(ctx)     // Get detailed health reports with latency
+err := c.Live(ctx)
+err := c.Ready(ctx)
+reports := c.Health(ctx)
 
-// Use with HTTP handlers for Kubernetes probes
 http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
     if err := c.Live(r.Context()); err != nil {
         w.WriteHeader(http.StatusServiceUnavailable)
@@ -340,7 +381,6 @@ http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 ### Metrics Observers
 
 ```go
-// Hook into container operations for metrics (Prometheus, OpenTelemetry, etc.)
 c := needle.New(
     needle.WithResolveObserver(func(key string, duration time.Duration, err error) {
         resolveLatency.WithLabelValues(key).Observe(duration.Seconds())
@@ -360,50 +400,13 @@ c := needle.New(
 )
 ```
 
-## Dependency Chain Example
+## Examples
 
-```go
-type Config struct {
-    DatabaseURL string
-}
+See the [examples](examples/) directory for complete working examples:
 
-type Database struct {
-    Config *Config
-}
-
-type UserRepository struct {
-    DB *Database
-}
-
-type UserService struct {
-    Repo *UserRepository
-}
-
-func main() {
-    c := needle.New()
-
-    // Register all providers
-    needle.ProvideValue(c, &Config{DatabaseURL: "postgres://localhost/mydb"})
-
-    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
-        cfg := needle.MustInvoke[*Config](c)
-        return &Database{Config: cfg}, nil
-    })
-
-    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserRepository, error) {
-        db := needle.MustInvoke[*Database](c)
-        return &UserRepository{DB: db}, nil
-    })
-
-    needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
-        repo := needle.MustInvoke[*UserRepository](c)
-        return &UserService{Repo: repo}, nil
-    })
-
-    // Resolve - all dependencies are automatically resolved
-    svc := needle.MustInvoke[*UserService](c)
-}
-```
+- [basic](examples/basic/) - Simple dependency chain
+- [httpserver](examples/httpserver/) - HTTP server with lifecycle hooks
+- [modules](examples/modules/) - Modules and interface binding
 
 ## License
 
