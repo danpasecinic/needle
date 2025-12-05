@@ -289,13 +289,20 @@ func TestStopObserver(t *testing.T) {
 	}
 }
 
+type SlowHealthService struct{}
+
+func (s *SlowHealthService) HealthCheck(ctx context.Context) error {
+	time.Sleep(time.Millisecond)
+	return nil
+}
+
 func TestHealthReportLatency(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 	ctx := context.Background()
 
-	_ = needle.ProvideValue(c, &HealthyService{})
+	_ = needle.ProvideValue(c, &SlowHealthService{})
 	_ = c.Start(ctx)
 
 	reports := c.Health(ctx)
@@ -304,8 +311,8 @@ func TestHealthReportLatency(t *testing.T) {
 		t.Fatalf("expected 1 report, got %d", len(reports))
 	}
 
-	if reports[0].Latency <= 0 {
-		t.Error("expected latency to be measured")
+	if reports[0].Latency < time.Millisecond {
+		t.Errorf("expected latency >= 1ms, got %v", reports[0].Latency)
 	}
 }
 
