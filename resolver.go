@@ -116,3 +116,90 @@ func HasNamed[T any](c *Container, name string) bool {
 	key := reflect.TypeKeyNamed[T](name)
 	return c.internal.Has(key)
 }
+
+type Optional[T any] struct {
+	value   T
+	present bool
+}
+
+func (o Optional[T]) Get() (T, bool) {
+	return o.value, o.present
+}
+
+func (o Optional[T]) Value() T {
+	return o.value
+}
+
+func (o Optional[T]) Present() bool {
+	return o.present
+}
+
+func (o Optional[T]) OrElse(defaultValue T) T {
+	if o.present {
+		return o.value
+	}
+	return defaultValue
+}
+
+func (o Optional[T]) OrElseFunc(fn func() T) T {
+	if o.present {
+		return o.value
+	}
+	return fn()
+}
+
+func Some[T any](value T) Optional[T] {
+	return Optional[T]{value: value, present: true}
+}
+
+func None[T any]() Optional[T] {
+	return Optional[T]{}
+}
+
+func InvokeOptional[T any](c *Container) Optional[T] {
+	return InvokeOptionalCtx[T](context.Background(), c)
+}
+
+func InvokeOptionalCtx[T any](ctx context.Context, c *Container) Optional[T] {
+	key := reflect.TypeKey[T]()
+
+	if !c.internal.Has(key) {
+		return None[T]()
+	}
+
+	instance, err := c.internal.Resolve(ctx, key)
+	if err != nil {
+		return None[T]()
+	}
+
+	typed, ok := instance.(T)
+	if !ok {
+		return None[T]()
+	}
+
+	return Some(typed)
+}
+
+func InvokeOptionalNamed[T any](c *Container, name string) Optional[T] {
+	return InvokeOptionalNamedCtx[T](context.Background(), c, name)
+}
+
+func InvokeOptionalNamedCtx[T any](ctx context.Context, c *Container, name string) Optional[T] {
+	key := reflect.TypeKeyNamed[T](name)
+
+	if !c.internal.Has(key) {
+		return None[T]()
+	}
+
+	instance, err := c.internal.Resolve(ctx, key)
+	if err != nil {
+		return None[T]()
+	}
+
+	typed, ok := instance.(T)
+	if !ok {
+		return None[T]()
+	}
+
+	return Some(typed)
+}
