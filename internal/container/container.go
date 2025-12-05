@@ -200,7 +200,31 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 	}
 
 	c.registry.SetInstance(key, instance)
+
+	if entry.Lazy && !entry.StartRan && c.state == StateRunning {
+		if err := c.runLazyStart(ctx, key, entry); err != nil {
+			return nil, err
+		}
+	}
+
 	return instance, nil
+}
+
+func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {
+	start := time.Now()
+	var startErr error
+
+	for _, hook := range entry.OnStart {
+		c.logger.Debug("running lazy OnStart hook", "service", key)
+		if err := hook(ctx); err != nil {
+			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+			break
+		}
+	}
+
+	c.registry.SetStartRan(key)
+	c.callStartHooks(key, time.Since(start), startErr)
+	return startErr
 }
 
 func (c *Container) resolveTransient(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
