@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/danpasecinic/needle/internal/container"
 )
@@ -16,11 +17,12 @@ type Container struct {
 }
 
 type containerConfig struct {
-	logger    *slog.Logger
-	onResolve []ResolveHook
-	onProvide []ProvideHook
-	onStart   []StartHook
-	onStop    []StopHook
+	logger          *slog.Logger
+	onResolve       []ResolveHook
+	onProvide       []ProvideHook
+	onStart         []StartHook
+	onStop          []StopHook
+	shutdownTimeout time.Duration
 }
 
 func newContainer(opts ...Option) *Container {
@@ -82,6 +84,11 @@ func (c *Container) Start(ctx context.Context) error {
 }
 
 func (c *Container) Stop(ctx context.Context) error {
+	if c.config.shutdownTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.config.shutdownTimeout)
+		defer cancel()
+	}
 	if err := c.internal.Stop(ctx); err != nil {
 		return errShutdownFailed("container", err)
 	}

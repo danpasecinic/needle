@@ -466,6 +466,11 @@ func (c *Container) Stop(ctx context.Context) error {
 
 	var errs []error
 	for _, key := range order {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, fmt.Errorf("shutdown timeout exceeded: %w", err))
+			break
+		}
+
 		entry, exists := c.registry.GetEntry(key)
 		if !exists || !entry.Instantiated {
 			continue

@@ -25,7 +25,7 @@ func (c *Container) Graph() GraphInfo {
 	sort.Strings(keys)
 
 	graph := c.internal.Graph()
-	var services []ServiceInfo
+	services := make([]ServiceInfo, 0, len(keys))
 
 	for _, key := range keys {
 		deps := graph.GetDependencies(key)
@@ -53,7 +53,7 @@ func (c *Container) FprintGraph(w io.Writer) {
 	info := c.Graph()
 
 	if len(info.Services) == 0 {
-		fmt.Fprintln(w, "(empty container)")
+		_, _ = fmt.Fprintln(w, "(empty container)")
 		return
 	}
 
@@ -64,9 +64,9 @@ func (c *Container) FprintGraph(w io.Writer) {
 		}
 
 		if len(svc.Dependencies) == 0 {
-			fmt.Fprintf(w, "%s %s\n", status, svc.Key)
+			_, _ = fmt.Fprintf(w, "%s %s\n", status, svc.Key)
 		} else {
-			fmt.Fprintf(w, "%s %s ← %s\n", status, svc.Key, strings.Join(svc.Dependencies, ", "))
+			_, _ = fmt.Fprintf(w, "%s %s ← %s\n", status, svc.Key, strings.Join(svc.Dependencies, ", "))
 		}
 	}
 }
@@ -84,9 +84,9 @@ func (c *Container) PrintGraphDOT() {
 func (c *Container) FprintGraphDOT(w io.Writer) {
 	info := c.Graph()
 
-	fmt.Fprintln(w, "digraph dependencies {")
-	fmt.Fprintln(w, "  rankdir=LR;")
-	fmt.Fprintln(w, "  node [shape=box];")
+	_, _ = fmt.Fprintln(w, "digraph dependencies {")
+	_, _ = fmt.Fprintln(w, "  rankdir=LR;")
+	_, _ = fmt.Fprintln(w, "  node [shape=box];")
 
 	for _, svc := range info.Services {
 		label := escapeLabel(svc.Key)
@@ -94,18 +94,18 @@ func (c *Container) FprintGraphDOT(w io.Writer) {
 		if svc.Instantiated {
 			style = ", style=filled, fillcolor=lightblue"
 		}
-		fmt.Fprintf(w, "  %q [label=%q%s];\n", svc.Key, label, style)
+		_, _ = fmt.Fprintf(w, "  %q [label=%q%s];\n", svc.Key, label, style)
 	}
 
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 
 	for _, svc := range info.Services {
 		for _, dep := range svc.Dependencies {
-			fmt.Fprintf(w, "  %q -> %q;\n", svc.Key, dep)
+			_, _ = fmt.Fprintf(w, "  %q -> %q;\n", svc.Key, dep)
 		}
 	}
 
-	fmt.Fprintln(w, "}")
+	_, _ = fmt.Fprintln(w, "}")
 }
 
 func (c *Container) SprintGraphDOT() string {
