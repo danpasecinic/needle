@@ -19,6 +19,7 @@ type providerConfig struct {
 	onStop       []container.Hook
 	scope        scope.Scope
 	poolSize     int
+	lazy         bool
 }
 
 func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) error {
@@ -53,6 +54,9 @@ func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) 
 	}
 	if cfg.poolSize > 0 {
 		c.internal.SetPoolSize(key, cfg.poolSize)
+	}
+	if cfg.lazy {
+		c.internal.SetLazy(key, true)
 	}
 
 	return nil
@@ -127,5 +131,11 @@ func WithPoolSize(size int) ProviderOption {
 	return func(cfg *providerConfig) {
 		cfg.scope = scope.Pooled
 		cfg.poolSize = size
+	}
+}
+
+func WithLazy() ProviderOption {
+	return func(cfg *providerConfig) {
+		cfg.lazy = true
 	}
 }

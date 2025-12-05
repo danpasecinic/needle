@@ -1,6 +1,9 @@
 package needle
 
-import "log/slog"
+import (
+	"log/slog"
+	"time"
+)
 
 type Option func(*containerConfig)
 
@@ -31,5 +34,11 @@ func WithStartObserver(hook StartHook) Option {
 func WithStopObserver(hook StopHook) Option {
 	return func(cfg *containerConfig) {
 		cfg.onStop = append(cfg.onStop, hook)
+	}
+}
+
+func WithShutdownTimeout(timeout time.Duration) Option {
+	return func(cfg *containerConfig) {
+		cfg.shutdownTimeout = timeout
 	}
 }

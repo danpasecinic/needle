@@ -200,7 +200,31 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 	}
 
 	c.registry.SetInstance(key, instance)
+
+	if entry.Lazy && !entry.StartRan && c.state == StateRunning {
+		if err := c.runLazyStart(ctx, key, entry); err != nil {
+			return nil, err
+		}
+	}
+
 	return instance, nil
+}
+
+func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {
+	start := time.Now()
+	var startErr error
+
+	for _, hook := range entry.OnStart {
+		c.logger.Debug("running lazy OnStart hook", "service", key)
+		if err := hook(ctx); err != nil {
+			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+			break
+		}
+	}
+
+	c.registry.SetStartRan(key)
+	c.callStartHooks(key, time.Since(start), startErr)
+	return startErr
 }
 
 func (c *Container) resolveTransient(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
@@ -381,6 +405,10 @@ func (c *Container) Start(ctx context.Context) error {
 	}
 
 	for _, key := range order {
+		if c.registry.IsLazy(key) {
+			continue
+		}
+
 		start := time.Now()
 
 		if _, err := c.Resolve(ctx, key); err != nil {
@@ -402,6 +430,7 @@ func (c *Container) Start(ctx context.Context) error {
 			}
 		}
 
+		c.registry.SetStartRan(key)
 		c.callStartHooks(key, time.Since(start), startErr)
 		if startErr != nil {
 			return startErr
@@ -437,6 +466,11 @@ func (c *Container) Stop(ctx context.Context) error {
 
 	var errs []error
 	for _, key := range order {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, fmt.Errorf("shutdown timeout exceeded: %w", err))
+			break
+		}
+
 		entry, exists := c.registry.GetEntry(key)
 		if !exists || !entry.Instantiated {
 			continue
@@ -486,6 +520,10 @@ func (c *Container) SetScope(key string, s scope.Scope) {
 
 func (c *Container) SetPoolSize(key string, size int) {
 	c.registry.SetPoolSize(key, size)
+}
+
+func (c *Container) SetLazy(key string, lazy bool) {
+	c.registry.SetLazy(key, lazy)
 }
 
 func (c *Container) AddDecorator(key string, decorator DecoratorFunc) {
