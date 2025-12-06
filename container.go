@@ -23,6 +23,7 @@ type containerConfig struct {
 	onStart         []StartHook
 	onStop          []StopHook
 	shutdownTimeout time.Duration
+	parallel        bool
 }
 
 func newContainer(opts ...Option) *Container {
@@ -35,7 +36,8 @@ func newContainer(opts ...Option) *Container {
 	}
 
 	internalCfg := &container.Config{
-		Logger: cfg.logger,
+		Logger:   cfg.logger,
+		Parallel: cfg.parallel,
 	}
 
 	for _, h := range cfg.onResolve {

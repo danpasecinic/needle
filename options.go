@@ -42,3 +42,9 @@ func WithShutdownTimeout(timeout time.Duration) Option {
 		cfg.shutdownTimeout = timeout
 	}
 }
+
+func WithParallel() Option {
+	return func(cfg *containerConfig) {
+		cfg.parallel = true
+	}
+}
