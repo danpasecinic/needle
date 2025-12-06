@@ -3,6 +3,7 @@ package needle
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -622,5 +623,218 @@ func TestContainer_ShutdownTimeoutNotSet(t *testing.T) {
 
 	if !stopped.Load() {
 		t.Error("service should have stopped")
+	}
+}
+
+func TestContainer_ParallelStartup(t *testing.T) {
+	t.Parallel()
+
+	c := New(WithParallel())
+
+	var order []string
+	var mu sync.Mutex
+
+	_ = ProvideValue(
+		c, &testConfig{value: "config"},
+		WithOnStart(
+			func(ctx context.Context) error {
+				time.Sleep(10 * time.Millisecond)
+				mu.Lock()
+				order = append(order, "config")
+				mu.Unlock()
+				return nil
+			},
+		),
+	)
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+			_ = MustInvoke[*testConfig](c)
+			return &testDatabase{}, nil
+		},
+		WithDependencies(reflect.TypeKey[*testConfig]()),
+		WithOnStart(
+			func(ctx context.Context) error {
+				mu.Lock()
+				order = append(order, "database")
+				mu.Unlock()
+				return nil
+			},
+		),
+	)
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+			_ = MustInvoke[*testDatabase](c)
+			return &testServer{}, nil
+		},
+		WithDependencies(reflect.TypeKey[*testDatabase]()),
+		WithOnStart(
+			func(ctx context.Context) error {
+				mu.Lock()
+				order = append(order, "server")
+				mu.Unlock()
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	if err := c.Start(ctx); err != nil {
+		t.Fatalf("failed to start: %v", err)
+	}
+
+	if len(order) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(order))
+	}
+
+	if order[0] != "config" {
+		t.Errorf("config should start first, got %v", order)
+	}
+
+	_ = c.Stop(ctx)
+}
+
+func TestContainer_ParallelStartupIndependent(t *testing.T) {
+	t.Parallel()
+
+	c := New(WithParallel())
+
+	var startTimes []time.Time
+	var mu sync.Mutex
+	startTime := time.Now()
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testConfig, error) {
+			return &testConfig{value: "a"}, nil
+		},
+		WithOnStart(
+			func(ctx context.Context) error {
+				mu.Lock()
+				startTimes = append(startTimes, time.Now())
+				mu.Unlock()
+				time.Sleep(50 * time.Millisecond)
+				return nil
+			},
+		),
+	)
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+			return &testDatabase{}, nil
+		},
+		WithOnStart(
+			func(ctx context.Context) error {
+				mu.Lock()
+				startTimes = append(startTimes, time.Now())
+				mu.Unlock()
+				time.Sleep(50 * time.Millisecond)
+				return nil
+			},
+		),
+	)
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+			return &testServer{}, nil
+		},
+		WithOnStart(
+			func(ctx context.Context) error {
+				mu.Lock()
+				startTimes = append(startTimes, time.Now())
+				mu.Unlock()
+				time.Sleep(50 * time.Millisecond)
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	if err := c.Start(ctx); err != nil {
+		t.Fatalf("failed to start: %v", err)
+	}
+
+	elapsed := time.Since(startTime)
+	if elapsed > 100*time.Millisecond {
+		t.Errorf("parallel startup took too long: %v (expected ~50ms)", elapsed)
+	}
+
+	for i, st := range startTimes {
+		if st.Sub(startTime) > 20*time.Millisecond {
+			t.Errorf("service %d started too late: %v", i, st.Sub(startTime))
+		}
+	}
+
+	_ = c.Stop(ctx)
+}
+
+func TestContainer_ParallelShutdown(t *testing.T) {
+	t.Parallel()
+
+	c := New(WithParallel())
+
+	var stopOrder []string
+	var mu sync.Mutex
+
+	_ = ProvideValue(
+		c, &testConfig{value: "config"},
+		WithOnStop(
+			func(ctx context.Context) error {
+				mu.Lock()
+				stopOrder = append(stopOrder, "config")
+				mu.Unlock()
+				return nil
+			},
+		),
+	)
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+			_ = MustInvoke[*testConfig](c)
+			return &testDatabase{}, nil
+		},
+		WithDependencies(reflect.TypeKey[*testConfig]()),
+		WithOnStop(
+			func(ctx context.Context) error {
+				mu.Lock()
+				stopOrder = append(stopOrder, "database")
+				mu.Unlock()
+				return nil
+			},
+		),
+	)
+
+	_ = Provide(
+		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+			_ = MustInvoke[*testDatabase](c)
+			return &testServer{}, nil
+		},
+		WithDependencies(reflect.TypeKey[*testDatabase]()),
+		WithOnStop(
+			func(ctx context.Context) error {
+				mu.Lock()
+				stopOrder = append(stopOrder, "server")
+				mu.Unlock()
+				return nil
+			},
+		),
+	)
+
+	ctx := context.Background()
+	_ = c.Start(ctx)
+
+	if err := c.Stop(ctx); err != nil {
+		t.Fatalf("failed to stop: %v", err)
+	}
+
+	if len(stopOrder) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(stopOrder))
+	}
+
+	if stopOrder[0] != "server" {
+		t.Errorf("server should stop first, got %v", stopOrder)
+	}
+	if stopOrder[2] != "config" {
+		t.Errorf("config should stop last, got %v", stopOrder)
 	}
 }
