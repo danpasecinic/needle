@@ -65,6 +65,8 @@ See the [examples](examples/) directory:
 | Start+Stop (50 services) | 53μs   | 101μs | **1.9x faster** |
 | Memory (10 services)     | 23KB   | 169KB | **7x less**     |
 
+<img width="1605" height="535" alt="image" src="https://github.com/user-attachments/assets/fc6d3b48-d2af-4789-ba94-45a386ab279c" />
+
 ### Parallel Startup
 
 When services have initialization work (database connections, HTTP clients, etc.),
