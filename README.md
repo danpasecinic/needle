@@ -37,6 +37,7 @@ needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) 
 })
 
 server := needle.MustInvoke[*Server](c)
+
 ```
 
 ## Examples
@@ -52,6 +53,30 @@ See the [examples](examples/) directory:
 - [healthchecks](examples/healthchecks/) - Liveness and readiness probes
 - [optional](examples/optional/) - Optional dependencies with fallbacks
 - [parallel](examples/parallel/) - Parallel startup/shutdown
+
+## Benchmarks
+
+### vs uber/fx
+
+| Operation                | Needle | Fx    | Speedup         |
+|--------------------------|--------|-------|-----------------|
+| Provide (10 services)    | 18μs   | 209μs | **12x faster**  |
+| Start+Stop (10 services) | 15μs   | 27μs  | **1.8x faster** |
+| Start+Stop (50 services) | 53μs   | 101μs | **1.9x faster** |
+| Memory (10 services)     | 23KB   | 169KB | **7x less**     |
+
+<img width="1605" height="535" alt="image" src="https://github.com/user-attachments/assets/fc6d3b48-d2af-4789-ba94-45a386ab279c" />
+
+### Parallel Startup
+
+When services have initialization work (database connections, HTTP clients, etc.),
+parallel startup provides significant speedups:
+
+| Scenario               | Sequential | Parallel | Speedup |
+|------------------------|------------|----------|---------|
+| 10 services × 1ms work | 23ms       | 2.5ms    | **9x**  |
+| 50 services × 1ms work | 117ms      | 2.8ms    | **42x** |
+
 
 ## Documentation
 
