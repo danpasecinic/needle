@@ -13,6 +13,7 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 - **Multiple scopes** - Singleton, Transient, Request, Pooled
 - **Lifecycle management** - OnStart/OnStop hooks with ordering
 - **Lazy providers** - Defer instantiation until first use
+- **Parallel startup** - Start independent services concurrently
 - **Modules** - Group related providers
 - **Interface binding** - Bind interfaces to implementations
 - **Decorators** - Wrap services with cross-cutting concerns
@@ -50,6 +51,7 @@ See the [examples](examples/) directory:
 - [lazy](examples/lazy/) - Deferred instantiation
 - [healthchecks](examples/healthchecks/) - Liveness and readiness probes
 - [optional](examples/optional/) - Optional dependencies with fallbacks
+- [parallel](examples/parallel/) - Parallel startup/shutdown
 
 ## Documentation
 

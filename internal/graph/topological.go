@@ -139,6 +139,24 @@ type ParallelGroup struct {
 	Nodes []string
 }
 
+func (g *Graph) ParallelShutdownGroups() ([]ParallelGroup, error) {
+	groups, err := g.ParallelStartupGroups()
+	if err != nil {
+		return nil, err
+	}
+
+	n := len(groups)
+	reversed := make([]ParallelGroup, n)
+	for i, group := range groups {
+		reversed[n-1-i] = ParallelGroup{
+			Level: n - 1 - i,
+			Nodes: group.Nodes,
+		}
+	}
+
+	return reversed, nil
+}
+
 func (g *Graph) ParallelStartupGroups() ([]ParallelGroup, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
