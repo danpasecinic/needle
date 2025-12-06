@@ -531,35 +531,11 @@ func (c *Container) Stop(ctx context.Context) error {
 	c.state = StateStopping
 	c.mu.Unlock()
 
-	order, err := c.graph.ShutdownOrder()
-	if err != nil {
-		return fmt.Errorf("failed to determine shutdown order: %w", err)
-	}
-
 	var errs []error
-	for _, key := range order {
-		if err := ctx.Err(); err != nil {
-			errs = append(errs, fmt.Errorf("shutdown timeout exceeded: %w", err))
-			break
-		}
-
-		entry, exists := c.registry.GetEntry(key)
-		if !exists || !entry.Instantiated {
-			continue
-		}
-
-		start := time.Now()
-		var stopErr error
-
-		for i := len(entry.OnStop) - 1; i >= 0; i-- {
-			c.logger.Debug("running OnStop hook", "service", key)
-			if err := entry.OnStop[i](ctx); err != nil {
-				stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
-				errs = append(errs, stopErr)
-			}
-		}
-
-		c.callStopHooks(key, time.Since(start), stopErr)
+	if c.parallel {
+		errs = c.stopParallel(ctx)
+	} else {
+		errs = c.stopSequential(ctx)
 	}
 
 	c.mu.Lock()
@@ -570,6 +546,98 @@ func (c *Container) Stop(ctx context.Context) error {
 		return fmt.Errorf("shutdown errors: %v", errs)
 	}
 	return nil
+}
+
+func (c *Container) stopSequential(ctx context.Context) []error {
+	order, err := c.graph.ShutdownOrder()
+	if err != nil {
+		return []error{fmt.Errorf("failed to determine shutdown order: %w", err)}
+	}
+
+	var errs []error
+	for _, key := range order {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, fmt.Errorf("shutdown timeout exceeded: %w", err))
+			break
+		}
+		if stopErr := c.stopService(ctx, key); stopErr != nil {
+			errs = append(errs, stopErr)
+		}
+	}
+
+	return errs
+}
+
+func (c *Container) stopParallel(ctx context.Context) []error {
+	groups, err := c.graph.ParallelShutdownGroups()
+	if err != nil {
+		return []error{fmt.Errorf("failed to determine shutdown groups: %w", err)}
+	}
+
+	var allErrs []error
+	for _, group := range groups {
+		if err := ctx.Err(); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("shutdown timeout exceeded: %w", err))
+			break
+		}
+		errs := c.stopGroup(ctx, group.Nodes)
+		allErrs = append(allErrs, errs...)
+	}
+
+	return allErrs
+}
+
+func (c *Container) stopGroup(ctx context.Context, keys []string) []error {
+	if len(keys) == 1 {
+		if err := c.stopService(ctx, keys[0]); err != nil {
+			return []error{err}
+		}
+		return nil
+	}
+
+	var mu sync.Mutex
+	var errs []error
+	var wg sync.WaitGroup
+
+	for _, key := range keys {
+		entry, exists := c.registry.GetEntry(key)
+		if !exists || !entry.Instantiated {
+			continue
+		}
+
+		wg.Add(1)
+		go func(k string) {
+			defer wg.Done()
+			if err := c.stopService(ctx, k); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
+		}(key)
+	}
+
+	wg.Wait()
+	return errs
+}
+
+func (c *Container) stopService(ctx context.Context, key string) error {
+	entry, exists := c.registry.GetEntry(key)
+	if !exists || !entry.Instantiated {
+		return nil
+	}
+
+	start := time.Now()
+	var stopErr error
+
+	for i := len(entry.OnStop) - 1; i >= 0; i-- {
+		c.logger.Debug("running OnStop hook", "service", key)
+		if err := entry.OnStop[i](ctx); err != nil {
+			stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
+		}
+	}
+
+	c.callStopHooks(key, time.Since(start), stopErr)
+	return stopErr
 }
 
 func (c *Container) callStopHooks(key string, duration time.Duration, err error) {
