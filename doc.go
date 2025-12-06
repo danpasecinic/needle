@@ -79,6 +79,15 @@
 // Lazy services are not instantiated during Start(). They are created on first
 // Invoke(), and their OnStart hooks run at that time if the container is running.
 //
+// # Parallel Startup
+//
+// Start independent services concurrently for faster boot times:
+//
+//	c := needle.New(needle.WithParallel())
+//
+// Services at the same dependency level start in parallel. Services still
+// wait for their dependencies before starting.
+//
 // # Shutdown Timeout
 //
 // Configure a deadline for graceful shutdown:
