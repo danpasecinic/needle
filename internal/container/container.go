@@ -40,6 +40,8 @@ type Container struct {
 	onProvide []ProvideHook
 	onStart   []StartHook
 	onStop    []StopHook
+
+	parallel bool
 }
 
 type ResolveHook func(key string, duration time.Duration, err error)
@@ -53,6 +55,7 @@ type Config struct {
 	OnProvide []ProvideHook
 	OnStart   []StartHook
 	OnStop    []StopHook
+	Parallel  bool
 }
 
 func New(cfg *Config) *Container {
@@ -71,6 +74,7 @@ func New(cfg *Config) *Container {
 		onProvide:  cfg.OnProvide,
 		onStart:    cfg.OnStart,
 		onStop:     cfg.OnStop,
+		parallel:   cfg.Parallel,
 	}
 }
 
@@ -399,42 +403,15 @@ func (c *Container) Start(ctx context.Context) error {
 	c.state = StateStarting
 	c.mu.Unlock()
 
-	order, err := c.graph.StartupOrder()
-	if err != nil {
-		return fmt.Errorf("failed to determine startup order: %w", err)
+	var err error
+	if c.parallel {
+		err = c.startParallel(ctx)
+	} else {
+		err = c.startSequential(ctx)
 	}
 
-	for _, key := range order {
-		if c.registry.IsLazy(key) {
-			continue
-		}
-
-		start := time.Now()
-
-		if _, err := c.Resolve(ctx, key); err != nil {
-			c.callStartHooks(key, time.Since(start), err)
-			return fmt.Errorf("failed to resolve %s during startup: %w", key, err)
-		}
-
-		entry, exists := c.registry.GetEntry(key)
-		if !exists {
-			continue
-		}
-
-		var startErr error
-		for _, hook := range entry.OnStart {
-			c.logger.Debug("running OnStart hook", "service", key)
-			if err := hook(ctx); err != nil {
-				startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
-				break
-			}
-		}
-
-		c.registry.SetStartRan(key)
-		c.callStartHooks(key, time.Since(start), startErr)
-		if startErr != nil {
-			return startErr
-		}
+	if err != nil {
+		return err
 	}
 
 	c.mu.Lock()
@@ -442,6 +419,101 @@ func (c *Container) Start(ctx context.Context) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+func (c *Container) startSequential(ctx context.Context) error {
+	order, err := c.graph.StartupOrder()
+	if err != nil {
+		return fmt.Errorf("failed to determine startup order: %w", err)
+	}
+
+	for _, key := range order {
+		if err := c.startService(ctx, key); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Container) startParallel(ctx context.Context) error {
+	groups, err := c.graph.ParallelStartupGroups()
+	if err != nil {
+		return fmt.Errorf("failed to determine startup groups: %w", err)
+	}
+
+	for _, group := range groups {
+		if err := c.startGroup(ctx, group.Nodes); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Container) startGroup(ctx context.Context, keys []string) error {
+	if len(keys) == 1 {
+		return c.startService(ctx, keys[0])
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(keys))
+
+	for _, key := range keys {
+		if c.registry.IsLazy(key) {
+			continue
+		}
+
+		wg.Add(1)
+		go func(k string) {
+			defer wg.Done()
+			if err := c.startService(ctx, k); err != nil {
+				errCh <- err
+			}
+		}(key)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Container) startService(ctx context.Context, key string) error {
+	if c.registry.IsLazy(key) {
+		return nil
+	}
+
+	start := time.Now()
+
+	if _, err := c.Resolve(ctx, key); err != nil {
+		c.callStartHooks(key, time.Since(start), err)
+		return fmt.Errorf("failed to resolve %s during startup: %w", key, err)
+	}
+
+	entry, exists := c.registry.GetEntry(key)
+	if !exists {
+		return nil
+	}
+
+	var startErr error
+	for _, hook := range entry.OnStart {
+		c.logger.Debug("running OnStart hook", "service", key)
+		if err := hook(ctx); err != nil {
+			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
+			break
+		}
+	}
+
+	c.registry.SetStartRan(key)
+	c.callStartHooks(key, time.Since(start), startErr)
+	return startErr
 }
 
 func (c *Container) callStartHooks(key string, duration time.Duration, err error) {
