@@ -6,36 +6,57 @@ var ErrCycleDetected = errors.New("cycle detected in graph")
 
 func (g *Graph) TopologicalSort() ([]string, error) {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
+	if g.topoValid && g.topoOrder != nil {
+		result := make([]string, len(g.topoOrder))
+		copy(result, g.topoOrder)
+		g.mu.RUnlock()
+		return result, nil
+	}
+	g.mu.RUnlock()
 
-	if g.HasCycle() {
-		return nil, ErrCycleDetected
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.topoValid && g.topoOrder != nil {
+		result := make([]string, len(g.topoOrder))
+		copy(result, g.topoOrder)
+		return result, nil
 	}
 
-	dependents := make(map[string][]string)
+	order, err := g.topologicalSortUnsafe()
+	if err != nil {
+		return nil, err
+	}
+
+	g.topoOrder = order
+	n := len(order)
+	g.topoOrderRev = make([]string, n)
+	for i, v := range order {
+		g.topoOrderRev[n-1-i] = v
+	}
+	g.topoValid = true
+
+	result := make([]string, len(order))
+	copy(result, order)
+	return result, nil
+}
+
+func (g *Graph) topologicalSortUnsafe() ([]string, error) {
+	nodeCount := len(g.nodes)
+	dependents := make(map[string][]string, nodeCount)
+	inDegree := make(map[string]int, nodeCount)
+
 	for id := range g.nodes {
-		dependents[id] = nil
+		inDegree[id] = 0
 	}
+
 	for id, deps := range g.edges {
 		for _, dep := range deps {
 			if _, exists := g.nodes[dep]; exists {
 				dependents[dep] = append(dependents[dep], id)
+				inDegree[id]++
 			}
 		}
-	}
-
-	inDegree := make(map[string]int)
-	for id := range g.nodes {
-		inDegree[id] = len(g.edges[id])
-	}
-	for id := range inDegree {
-		count := 0
-		for _, dep := range g.edges[id] {
-			if _, exists := g.nodes[dep]; exists {
-				count++
-			}
-		}
-		inDegree[id] = count
 	}
 
 	var queue []string
@@ -67,18 +88,25 @@ func (g *Graph) TopologicalSort() ([]string, error) {
 }
 
 func (g *Graph) ReverseTopologicalSort() ([]string, error) {
-	sorted, err := g.TopologicalSort()
+	g.mu.RLock()
+	if g.topoValid && g.topoOrderRev != nil {
+		result := make([]string, len(g.topoOrderRev))
+		copy(result, g.topoOrderRev)
+		g.mu.RUnlock()
+		return result, nil
+	}
+	g.mu.RUnlock()
+
+	_, err := g.TopologicalSort()
 	if err != nil {
 		return nil, err
 	}
 
-	n := len(sorted)
-	reversed := make([]string, n)
-	for i, v := range sorted {
-		reversed[n-1-i] = v
-	}
-
-	return reversed, nil
+	g.mu.RLock()
+	result := make([]string, len(g.topoOrderRev))
+	copy(result, g.topoOrderRev)
+	g.mu.RUnlock()
+	return result, nil
 }
 
 func (g *Graph) StartupOrder() ([]string, error) {
@@ -161,11 +189,7 @@ func (g *Graph) ParallelStartupGroups() ([]ParallelGroup, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if g.HasCycle() {
-		return nil, ErrCycleDetected
-	}
-
-	levels := make(map[string]int)
+	levels := make(map[string]int, len(g.nodes))
 
 	var calculateLevel func(id string) int
 	calculateLevel = func(id string) int {

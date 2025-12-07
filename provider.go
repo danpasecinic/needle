@@ -23,6 +23,15 @@ type providerConfig struct {
 }
 
 func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) error {
+	if len(opts) == 0 {
+		key := reflect.TypeKey[T]()
+		resolver := c.resolver
+		wrappedProvider := func(ctx context.Context, r container.Resolver) (any, error) {
+			return provider(ctx, resolver)
+		}
+		return c.internal.Register(key, wrappedProvider, nil)
+	}
+
 	cfg := &providerConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -33,8 +42,8 @@ func Provide[T any](c *Container, provider Provider[T], opts ...ProviderOption) 
 		key = reflect.TypeKeyNamed[T](cfg.name)
 	}
 
+	resolver := c.resolver
 	wrappedProvider := func(ctx context.Context, r container.Resolver) (any, error) {
-		resolver := &resolverAdapter{container: c}
 		return provider(ctx, resolver)
 	}
 
@@ -88,6 +97,14 @@ func ProvideValue[T any](c *Container, value T, opts ...ProviderOption) error {
 }
 
 func ProvideNamed[T any](c *Container, name string, provider Provider[T], opts ...ProviderOption) error {
+	if len(opts) == 0 {
+		key := reflect.TypeKeyNamed[T](name)
+		resolver := c.resolver
+		wrappedProvider := func(ctx context.Context, r container.Resolver) (any, error) {
+			return provider(ctx, resolver)
+		}
+		return c.internal.Register(key, wrappedProvider, nil)
+	}
 	opts = append(opts, WithName(name))
 	return Provide(c, provider, opts...)
 }

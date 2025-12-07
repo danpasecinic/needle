@@ -10,6 +10,16 @@ import (
 )
 
 func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
+	if len(c.onResolve) == 0 {
+		if instance, ok := c.registry.GetInstanceFast(key); ok {
+			return instance, nil
+		}
+	}
+
+	return c.resolveSlow(ctx, key)
+}
+
+func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 	start := time.Now()
 
 	c.resolvingMu.Lock()

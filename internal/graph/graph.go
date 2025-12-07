@@ -8,9 +8,15 @@ type Node struct {
 }
 
 type Graph struct {
-	mu    sync.RWMutex
-	nodes map[string]*Node
-	edges map[string][]string
+	mu         sync.RWMutex
+	nodes      map[string]*Node
+	edges      map[string][]string
+	cycleValid bool
+	hasCycle   bool
+
+	topoValid    bool
+	topoOrder    []string
+	topoOrderRev []string
 }
 
 func New() *Graph {
@@ -23,20 +29,38 @@ func New() *Graph {
 func (g *Graph) AddNode(id string, dependencies []string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.addNodeUnsafe(id, dependencies)
+}
 
+func (g *Graph) AddNodeUnsafe(id string, dependencies []string) {
+	g.addNodeUnsafe(id, dependencies)
+}
+
+func (g *Graph) addNodeUnsafe(id string, dependencies []string) {
 	g.nodes[id] = &Node{
 		ID:           id,
 		Dependencies: dependencies,
 	}
 	g.edges[id] = dependencies
+	g.cycleValid = false
+	g.topoValid = false
 }
 
 func (g *Graph) RemoveNode(id string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.removeNodeUnsafe(id)
+}
 
+func (g *Graph) RemoveNodeUnsafe(id string) {
+	g.removeNodeUnsafe(id)
+}
+
+func (g *Graph) removeNodeUnsafe(id string) {
 	delete(g.nodes, id)
 	delete(g.edges, id)
+	g.cycleValid = false
+	g.topoValid = false
 }
 
 func (g *Graph) HasNode(id string) bool {
@@ -118,6 +142,7 @@ func (g *Graph) Clear() {
 
 	g.nodes = make(map[string]*Node)
 	g.edges = make(map[string][]string)
+	g.cycleValid = false
 }
 
 func (g *Graph) Clone() *Graph {

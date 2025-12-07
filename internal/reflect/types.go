@@ -6,6 +6,7 @@ import (
 )
 
 var typeKeyCache sync.Map
+var namedKeyCache sync.Map
 
 func TypeKey[T any]() string {
 	var zero T
@@ -14,6 +15,11 @@ func TypeKey[T any]() string {
 		t = reflect.TypeOf((*T)(nil)).Elem()
 	}
 	return typeKeyFromReflect(t)
+}
+
+type namedKey struct {
+	t    reflect.Type
+	name string
 }
 
 func typeKeyFromReflect(t reflect.Type) string {
@@ -67,7 +73,20 @@ func TypeKeyFromValue(v any) string {
 }
 
 func TypeKeyNamed[T any](name string) string {
-	return TypeKey[T]() + "#" + name
+	var zero T
+	t := reflect.TypeOf(zero)
+	if t == nil {
+		t = reflect.TypeOf((*T)(nil)).Elem()
+	}
+
+	key := namedKey{t: t, name: name}
+	if cached, ok := namedKeyCache.Load(key); ok {
+		return cached.(string)
+	}
+
+	result := typeKeyFromReflect(t) + "#" + name
+	namedKeyCache.Store(key, result)
+	return result
 }
 
 func TypeKeyNamedFromValue(v any, name string) string {
@@ -173,10 +192,6 @@ func splitTag(tag string) []string {
 		parts = append(parts, current)
 	}
 	return parts
-}
-
-func TypeKeyFromReflectType(t reflect.Type) string {
-	return typeKeyFromReflect(t)
 }
 
 type FuncParamInfo struct {
