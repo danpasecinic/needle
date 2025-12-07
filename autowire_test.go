@@ -36,8 +36,8 @@ func TestInvokeStruct(t *testing.T) {
 		"resolves tagged fields", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "app"})
-			needle.ProvideValue(c, &TestDatabase{URL: "postgres://localhost"})
+			_ = needle.ProvideValue(c, &TestLogger{Name: "app"})
+			_ = needle.ProvideValue(c, &TestDatabase{URL: "postgres://localhost"})
 
 			svc, err := needle.InvokeStruct[*TestServiceWithTags](c)
 			if err != nil {
@@ -60,8 +60,8 @@ func TestInvokeStruct(t *testing.T) {
 		"resolves named dependencies", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideNamedValue(c, "primary", &TestDatabase{URL: "primary-db"})
-			needle.ProvideNamedValue(c, "secondary", &TestDatabase{URL: "secondary-db"})
+			_ = needle.ProvideNamedValue(c, "primary", &TestDatabase{URL: "primary-db"})
+			_ = needle.ProvideNamedValue(c, "secondary", &TestDatabase{URL: "secondary-db"})
 
 			svc, err := needle.InvokeStruct[*TestServiceWithNamedDep](c)
 			if err != nil {
@@ -81,7 +81,7 @@ func TestInvokeStruct(t *testing.T) {
 		"fails on missing required dependency", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "app"})
+			_ = needle.ProvideValue(c, &TestLogger{Name: "app"})
 
 			_, err := needle.InvokeStruct[*TestServiceWithTags](c)
 			if err == nil {
@@ -94,7 +94,7 @@ func TestInvokeStruct(t *testing.T) {
 		"succeeds with missing optional dependency", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideNamedValue(c, "primary", &TestDatabase{URL: "primary-db"})
+			_ = needle.ProvideNamedValue(c, "primary", &TestDatabase{URL: "primary-db"})
 
 			svc, err := needle.InvokeStruct[*TestServiceWithNamedDep](c)
 			if err != nil {
@@ -114,8 +114,8 @@ func TestInvokeStruct(t *testing.T) {
 		"returns non-pointer struct", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "app"})
-			needle.ProvideValue(c, &TestDatabase{URL: "postgres://localhost"})
+			_ = needle.ProvideValue(c, &TestLogger{Name: "app"})
+			_ = needle.ProvideValue(c, &TestDatabase{URL: "postgres://localhost"})
 
 			svc, err := needle.InvokeStruct[TestServiceWithTags](c)
 			if err != nil {
@@ -158,8 +158,8 @@ func TestProvideFunc(t *testing.T) {
 		"auto-wires constructor parameters", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideFunc[*TestLogger](c, NewTestLogger)
-			needle.ProvideFunc[*TestDatabase](c, NewTestDatabase)
+			_ = needle.ProvideFunc[*TestLogger](c, NewTestLogger)
+			_ = needle.ProvideFunc[*TestDatabase](c, NewTestDatabase)
 
 			db, err := needle.Invoke[*TestDatabase](c)
 			if err != nil {
@@ -176,8 +176,8 @@ func TestProvideFunc(t *testing.T) {
 		"handles constructor returning error", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "fail"})
-			needle.ProvideFunc[*TestDatabase](c, NewTestDatabaseWithError)
+			_ = needle.ProvideValue(c, &TestLogger{Name: "fail"})
+			_ = needle.ProvideFunc[*TestDatabase](c, NewTestDatabaseWithError)
 
 			_, err := needle.Invoke[*TestDatabase](c)
 			if err == nil {
@@ -190,9 +190,9 @@ func TestProvideFunc(t *testing.T) {
 		"chains multiple auto-wired services", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideFunc[*TestLogger](c, NewTestLogger)
-			needle.ProvideFunc[*TestDatabase](c, NewTestDatabase)
-			needle.ProvideFunc[*TestUserService](c, NewTestUserService)
+			_ = needle.ProvideFunc[*TestLogger](c, NewTestLogger)
+			_ = needle.ProvideFunc[*TestDatabase](c, NewTestDatabase)
+			_ = needle.ProvideFunc[*TestUserService](c, NewTestUserService)
 
 			svc, err := needle.Invoke[*TestUserService](c)
 			if err != nil {
@@ -212,7 +212,7 @@ func TestProvideFunc(t *testing.T) {
 		"fails on missing dependency", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideFunc[*TestDatabase](c, NewTestDatabase)
+			_ = needle.ProvideFunc[*TestDatabase](c, NewTestDatabase)
 
 			_, err := needle.Invoke[*TestDatabase](c)
 			if err == nil {
@@ -225,7 +225,7 @@ func TestProvideFunc(t *testing.T) {
 		"works with zero-arg constructor", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideFunc[*TestLogger](c, NewTestLogger)
+			_ = needle.ProvideFunc[*TestLogger](c, NewTestLogger)
 
 			logger, err := needle.Invoke[*TestLogger](c)
 			if err != nil {
@@ -244,9 +244,9 @@ func TestProvideStruct(t *testing.T) {
 		"registers struct with tagged fields", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "app"})
-			needle.ProvideValue(c, &TestDatabase{URL: "postgres://localhost"})
-			needle.ProvideStruct[*TestServiceWithTags](c)
+			_ = needle.ProvideValue(c, &TestLogger{Name: "app"})
+			_ = needle.ProvideValue(c, &TestDatabase{URL: "postgres://localhost"})
+			_ = needle.ProvideStruct[*TestServiceWithTags](c)
 
 			svc, err := needle.Invoke[*TestServiceWithTags](c)
 			if err != nil {
@@ -263,8 +263,8 @@ func TestProvideStruct(t *testing.T) {
 		"validates dependencies on registration", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "app"})
-			needle.ProvideStruct[*TestServiceWithTags](c)
+			_ = needle.ProvideValue(c, &TestLogger{Name: "app"})
+			_ = needle.ProvideStruct[*TestServiceWithTags](c)
 
 			err := c.Validate()
 			if err == nil {
@@ -277,8 +277,8 @@ func TestProvideStruct(t *testing.T) {
 func TestProvideStructWithContext(t *testing.T) {
 	c := needle.New()
 
-	needle.ProvideValue(c, &TestLogger{Name: "ctx-test"})
-	needle.ProvideValue(c, &TestDatabase{URL: "ctx-db"})
+	_ = needle.ProvideValue(c, &TestLogger{Name: "ctx-test"})
+	_ = needle.ProvideValue(c, &TestDatabase{URL: "ctx-db"})
 
 	ctx := context.Background()
 	svc, err := needle.InvokeStructCtx[*TestServiceWithTags](ctx, c)
@@ -312,8 +312,8 @@ func TestMustProvideStruct(t *testing.T) {
 		"does not panic on valid struct", func(t *testing.T) {
 			c := needle.New()
 
-			needle.ProvideValue(c, &TestLogger{Name: "app"})
-			needle.ProvideValue(c, &TestDatabase{URL: "db"})
+			_ = needle.ProvideValue(c, &TestLogger{Name: "app"})
+			_ = needle.ProvideValue(c, &TestDatabase{URL: "db"})
 
 			needle.MustProvideStruct[*TestServiceWithTags](c)
 
