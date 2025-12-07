@@ -243,11 +243,11 @@ func printCategory(cat CategoryResults, markdown bool) {
 	fastest := cat.Results[0].NsPerOp
 
 	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
 
 	if markdown {
 		t.AppendHeader(table.Row{"Framework", "Time", "Memory", "Allocs", "Comparison"})
 	} else {
+		t.SetOutputMirror(os.Stdout)
 		t.SetTitle(title)
 		t.AppendHeader(table.Row{"Framework", "Time", "Memory", "Allocs", "vs Fastest"})
 	}
