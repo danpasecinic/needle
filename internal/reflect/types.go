@@ -109,3 +109,104 @@ func Implements[T any](v any) bool {
 	t := reflect.TypeOf((*T)(nil)).Elem()
 	return reflect.TypeOf(v).Implements(t)
 }
+
+type FieldInfo struct {
+	Name     string
+	TypeKey  string
+	Index    int
+	Optional bool
+	Named    string
+}
+
+func StructFields[T any](tagKey string) ([]FieldInfo, error) {
+	t := reflect.TypeOf((*T)(nil)).Elem()
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return nil, nil
+	}
+
+	var fields []FieldInfo
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag, ok := field.Tag.Lookup(tagKey)
+		if !ok {
+			continue
+		}
+
+		info := FieldInfo{
+			Name:    field.Name,
+			TypeKey: typeKeyFromReflect(field.Type),
+			Index:   i,
+		}
+
+		if tag != "" {
+			parts := splitTag(tag)
+			for _, part := range parts {
+				if part == "optional" {
+					info.Optional = true
+				} else if part != "" {
+					info.Named = part
+				}
+			}
+		}
+
+		fields = append(fields, info)
+	}
+
+	return fields, nil
+}
+
+func splitTag(tag string) []string {
+	var parts []string
+	current := ""
+	for _, c := range tag {
+		if c == ',' {
+			parts = append(parts, current)
+			current = ""
+		} else {
+			current += string(c)
+		}
+	}
+	if current != "" {
+		parts = append(parts, current)
+	}
+	return parts
+}
+
+func TypeKeyFromReflectType(t reflect.Type) string {
+	return typeKeyFromReflect(t)
+}
+
+type FuncParamInfo struct {
+	Index   int
+	TypeKey string
+	Type    reflect.Type
+}
+
+func FuncParams(fn any) ([]FuncParamInfo, reflect.Type, error) {
+	t := reflect.TypeOf(fn)
+	if t == nil || t.Kind() != reflect.Func {
+		return nil, nil, nil
+	}
+
+	var params []FuncParamInfo
+	for i := 0; i < t.NumIn(); i++ {
+		paramType := t.In(i)
+		params = append(
+			params, FuncParamInfo{
+				Index:   i,
+				TypeKey: typeKeyFromReflect(paramType),
+				Type:    paramType,
+			},
+		)
+	}
+
+	var returnType reflect.Type
+	if t.NumOut() > 0 {
+		returnType = t.Out(0)
+	}
+
+	return params, returnType, nil
+}

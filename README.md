@@ -8,6 +8,7 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 ## Features
 
 - **Type-safe generics** - Compile-time type checking with `Provide[T]` and `Invoke[T]`
+- **Auto-wiring** - Constructor injection and struct tag injection
 - **Zero dependencies** - Only Go standard library
 - **Cycle detection** - Automatically detects circular dependencies
 - **Multiple scopes** - Singleton, Transient, Request, Pooled
@@ -37,7 +38,6 @@ needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) 
 })
 
 server := needle.MustInvoke[*Server](c)
-
 ```
 
 ## Examples
@@ -45,6 +45,7 @@ server := needle.MustInvoke[*Server](c)
 See the [examples](examples/) directory:
 
 - [basic](examples/basic/) - Simple dependency chain
+- [autowire](examples/autowire/) - Struct-based injection
 - [httpserver](examples/httpserver/) - HTTP server with lifecycle
 - [modules](examples/modules/) - Modules and interface binding
 - [scopes](examples/scopes/) - Singleton, Transient, Request, Pooled
