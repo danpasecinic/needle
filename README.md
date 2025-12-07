@@ -37,7 +37,6 @@ needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) 
 })
 
 server := needle.MustInvoke[*Server](c)
-
 ```
 
 ## Examples
@@ -45,6 +44,7 @@ server := needle.MustInvoke[*Server](c)
 See the [examples](examples/) directory:
 
 - [basic](examples/basic/) - Simple dependency chain
+- [autowire](examples/autowire/) - Struct-based injection
 - [httpserver](examples/httpserver/) - HTTP server with lifecycle
 - [modules](examples/modules/) - Modules and interface binding
 - [scopes](examples/scopes/) - Singleton, Transient, Request, Pooled
