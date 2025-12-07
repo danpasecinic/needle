@@ -6,7 +6,42 @@ var ErrCycleDetected = errors.New("cycle detected in graph")
 
 func (g *Graph) TopologicalSort() ([]string, error) {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
+	if g.topoValid && g.topoOrder != nil {
+		result := make([]string, len(g.topoOrder))
+		copy(result, g.topoOrder)
+		g.mu.RUnlock()
+		return result, nil
+	}
+	g.mu.RUnlock()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.topoValid && g.topoOrder != nil {
+		result := make([]string, len(g.topoOrder))
+		copy(result, g.topoOrder)
+		return result, nil
+	}
+
+	order, err := g.topologicalSortUnsafe()
+	if err != nil {
+		return nil, err
+	}
+
+	g.topoOrder = order
+	n := len(order)
+	g.topoOrderRev = make([]string, n)
+	for i, v := range order {
+		g.topoOrderRev[n-1-i] = v
+	}
+	g.topoValid = true
+
+	result := make([]string, len(order))
+	copy(result, order)
+	return result, nil
+}
+
+func (g *Graph) topologicalSortUnsafe() ([]string, error) {
 
 	nodeCount := len(g.nodes)
 	dependents := make(map[string][]string, nodeCount)
@@ -54,18 +89,25 @@ func (g *Graph) TopologicalSort() ([]string, error) {
 }
 
 func (g *Graph) ReverseTopologicalSort() ([]string, error) {
-	sorted, err := g.TopologicalSort()
+	g.mu.RLock()
+	if g.topoValid && g.topoOrderRev != nil {
+		result := make([]string, len(g.topoOrderRev))
+		copy(result, g.topoOrderRev)
+		g.mu.RUnlock()
+		return result, nil
+	}
+	g.mu.RUnlock()
+
+	_, err := g.TopologicalSort()
 	if err != nil {
 		return nil, err
 	}
 
-	n := len(sorted)
-	reversed := make([]string, n)
-	for i, v := range sorted {
-		reversed[n-1-i] = v
-	}
-
-	return reversed, nil
+	g.mu.RLock()
+	result := make([]string, len(g.topoOrderRev))
+	copy(result, g.topoOrderRev)
+	g.mu.RUnlock()
+	return result, nil
 }
 
 func (g *Graph) StartupOrder() ([]string, error) {
