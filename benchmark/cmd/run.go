@@ -328,7 +328,12 @@ func formatNs(ns float64) string {
 }
 
 func printSummary(groups []CategoryResults, markdown bool) {
-	wins := make(map[string]int)
+	wins := map[string]int{
+		"Needle": 0,
+		"Do":     0,
+		"Dig":    0,
+		"Fx":     0,
+	}
 	for _, cat := range groups {
 		if len(cat.Results) > 0 {
 			winner := cat.Results[0].Framework
