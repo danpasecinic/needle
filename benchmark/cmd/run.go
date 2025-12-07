@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,17 +13,20 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 type BenchmarkResult struct {
-	Name       string
-	Framework  string
-	Category   string
-	Scenario   string
-	Iterations int64
-	NsPerOp    float64
-	BytesPerOp int64
-	AllocsOp   int64
+	Name       string  `json:"name"`
+	Framework  string  `json:"framework"`
+	Category   string  `json:"category"`
+	Scenario   string  `json:"scenario"`
+	Iterations int64   `json:"iterations"`
+	NsPerOp    float64 `json:"ns_per_op"`
+	BytesPerOp int64   `json:"bytes_per_op"`
+	AllocsOp   int64   `json:"allocs_per_op"`
 }
 
 type CategoryResults struct {
@@ -30,30 +34,30 @@ type CategoryResults struct {
 	Results  []BenchmarkResult
 }
 
-var frameworkColors = map[string]string{
-	"Needle":         "\033[32m",
-	"NeedleParallel": "\033[36m",
-	"Do":             "\033[33m",
-	"Dig":            "\033[35m",
-	"Fx":             "\033[34m",
+var frameworkColors = map[string]text.Color{
+	"Needle":         text.FgGreen,
+	"NeedleParallel": text.FgCyan,
+	"Do":             text.FgYellow,
+	"Dig":            text.FgMagenta,
+	"Fx":             text.FgBlue,
 }
 
-const reset = "\033[0m"
-const bold = "\033[1m"
-const dim = "\033[2m"
-
 func main() {
-	fmt.Println()
-	fmt.Printf("%s%s╔══════════════════════════════════════════════════════════════════╗%s\n", bold, "\033[36m", reset)
-	fmt.Printf("%s%s║         🪡  Needle DI Framework Benchmark Suite                  ║%s\n", bold, "\033[36m", reset)
-	fmt.Printf("%s%s╚══════════════════════════════════════════════════════════════════╝%s\n", bold, "\033[36m", reset)
-	fmt.Println()
+	markdown := flag.Bool("md", false, "Output in markdown format")
+	jsonOut := flag.Bool("json", false, "Export results to JSON file")
+	flag.Parse()
 
-	fmt.Printf("%sRunning benchmarks...%s\n\n", dim, reset)
+	fmt.Println()
+	printHeader(*markdown)
 
-	benchDir := ".."
-	if len(os.Args) > 1 && os.Args[1] != "--json" {
-		benchDir = os.Args[1]
+	benchDir := "."
+	args := flag.Args()
+	if len(args) > 0 {
+		benchDir = args[0]
+	}
+
+	if !*markdown {
+		fmt.Printf("\033[2mRunning benchmarks...\033[0m\n\n")
 	}
 
 	cmd := exec.Command("go", "test", "-bench=.", "-benchmem", "-count=3", "-benchtime=100ms")
@@ -71,14 +75,27 @@ func main() {
 	grouped := groupByCategory(results)
 
 	for _, cat := range grouped {
-		printCategory(cat)
+		printCategory(cat, *markdown)
 	}
 
-	printSummary(grouped)
+	printSummary(grouped, *markdown)
 
-	if len(os.Args) > 1 && os.Args[1] == "--json" {
+	if *jsonOut {
 		exportJSON(results)
 	}
+}
+
+func printHeader(markdown bool) {
+	if markdown {
+		fmt.Println("# Needle DI Framework Benchmark Results")
+		fmt.Println()
+		return
+	}
+
+	fmt.Println("\033[1m\033[36m╔══════════════════════════════════════════════════════════════════╗\033[0m")
+	fmt.Println("\033[1m\033[36m║         🪡  Needle DI Framework Benchmark Suite                  ║\033[0m")
+	fmt.Println("\033[1m\033[36m╚══════════════════════════════════════════════════════════════════╝\033[0m")
+	fmt.Println()
 }
 
 func parseResults(output []byte) []BenchmarkResult {
@@ -214,106 +231,92 @@ func groupByCategory(results []BenchmarkResult) []CategoryResults {
 	return ordered
 }
 
-func printCategory(cat CategoryResults) {
-	title := formatCategoryTitle(cat.Category)
-	fmt.Printf("%s┌──────────────────────────────────────────────────────────────────┐%s\n", dim, reset)
-	fmt.Printf("%s│ %s%-64s%s │\n", dim, bold, title, reset)
-	fmt.Printf("%s├──────────────────────────────────────────────────────────────────┤%s\n", dim, reset)
-
+func printCategory(cat CategoryResults, markdown bool) {
 	if len(cat.Results) == 0 {
-		fmt.Printf("%s│ No results                                                       │%s\n", dim, reset)
-		fmt.Printf("%s└──────────────────────────────────────────────────────────────────┘%s\n", dim, reset)
-		fmt.Println()
 		return
 	}
 
+	title := formatCategoryTitle(cat.Category)
 	fastest := cat.Results[0].NsPerOp
 
-	for i, r := range cat.Results {
-		color := frameworkColors[r.Framework]
-		if color == "" {
-			color = reset
-		}
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
 
-		speedup := ""
-		if i > 0 && fastest > 0 {
-			ratio := r.NsPerOp / fastest
-			speedup = fmt.Sprintf("(%.1fx slower)", ratio)
-		} else if i == 0 {
-			speedup = "(fastest)"
-		}
-
-		bar := makeBar(r.NsPerOp, fastest, 20)
-
-		fmt.Printf(
-			"%s│%s %s%-16s%s %s %s%10s %s%10d B %s%6d allocs%s │\n",
-			dim, reset,
-			color, r.Framework, reset,
-			bar,
-			dim, formatNs(r.NsPerOp), reset,
-			r.BytesPerOp,
-			dim, r.AllocsOp, reset,
-		)
-
-		if speedup != "" {
-			fmt.Printf(
-				"%s│                  %s%-40s%s              │%s\n",
-				dim, dim, speedup, reset, reset,
-			)
-		}
+	if markdown {
+		t.AppendHeader(table.Row{"Framework", "Time", "Memory", "Allocs", "Comparison"})
+	} else {
+		t.SetTitle(title)
+		t.AppendHeader(table.Row{"Framework", "Time", "Memory", "Allocs", "vs Fastest"})
 	}
 
-	fmt.Printf("%s└──────────────────────────────────────────────────────────────────┘%s\n", dim, reset)
-	fmt.Println()
+	for i, r := range cat.Results {
+		comparison := ""
+		if i == 0 {
+			comparison = "fastest"
+		} else if fastest > 0 {
+			ratio := r.NsPerOp / fastest
+			comparison = fmt.Sprintf("%.1fx slower", ratio)
+		}
+
+		row := table.Row{
+			r.Framework,
+			formatNs(r.NsPerOp),
+			fmt.Sprintf("%d B", r.BytesPerOp),
+			fmt.Sprintf("%d", r.AllocsOp),
+			comparison,
+		}
+		t.AppendRow(row)
+	}
+
+	if markdown {
+		fmt.Printf("### %s\n\n", title)
+		fmt.Println(t.RenderMarkdown())
+		fmt.Println()
+	} else {
+		t.SetStyle(table.StyleRounded)
+		t.Style().Title.Align = text.AlignCenter
+		t.Style().Options.SeparateRows = false
+
+		for i, r := range cat.Results {
+			if color, ok := frameworkColors[r.Framework]; ok {
+				t.SetColumnConfigs(
+					[]table.ColumnConfig{
+						{Number: 1, Colors: text.Colors{color}},
+					},
+				)
+				_ = i
+			}
+		}
+
+		t.Render()
+		fmt.Println()
+	}
 }
 
 func formatCategoryTitle(cat string) string {
-	parts := strings.Split(cat, "_")
 	titles := map[string]string{
-		"Provide_Simple":       "📦 Provider Registration (Simple)",
-		"Provide_Chain":        "📦 Provider Registration (Dependency Chain)",
-		"Invoke_Singleton":     "🔍 Service Resolution (Singleton)",
-		"Invoke_Chain":         "🔍 Service Resolution (Dependency Chain)",
-		"Named_10":             "🏷️  Named Services (10 services)",
-		"Lifecycle_10":         "🔄 Lifecycle Start/Stop (10 services)",
-		"Lifecycle_50":         "🔄 Lifecycle Start/Stop (50 services)",
-		"LifecycleWithWork_10": "⏱️  Lifecycle with Work (10 services, 1ms each)",
-		"LifecycleWithWork_50": "⏱️  Lifecycle with Work (50 services, 1ms each)",
+		"Provide_Simple":       "Provider Registration (Simple)",
+		"Provide_Chain":        "Provider Registration (Dependency Chain)",
+		"Invoke_Singleton":     "Service Resolution (Singleton)",
+		"Invoke_Chain":         "Service Resolution (Dependency Chain)",
+		"Named_10":             "Named Services (10 services)",
+		"Lifecycle_10":         "Lifecycle Start/Stop (10 services)",
+		"Lifecycle_50":         "Lifecycle Start/Stop (50 services)",
+		"LifecycleWithWork_10": "Lifecycle with Work (10 services, 1ms each)",
+		"LifecycleWithWork_50": "Lifecycle with Work (50 services, 1ms each)",
 	}
 
 	if title, ok := titles[cat]; ok {
 		return title
 	}
 
+	parts := strings.Split(cat, "_")
 	for i, p := range parts {
-		parts[i] = strings.Title(strings.ToLower(p))
+		if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + strings.ToLower(p[1:])
+		}
 	}
 	return strings.Join(parts, " ")
-}
-
-func makeBar(value, fastest float64, width int) string {
-	if fastest == 0 {
-		return strings.Repeat("█", width)
-	}
-
-	ratio := value / fastest
-	if ratio > 10 {
-		ratio = 10
-	}
-
-	filled := int(float64(width) / ratio)
-	if filled < 1 {
-		filled = 1
-	}
-	if filled > width {
-		filled = width
-	}
-
-	return fmt.Sprintf(
-		"\033[32m%s\033[31m%s\033[0m",
-		strings.Repeat("█", filled),
-		strings.Repeat("░", width-filled),
-	)
 }
 
 func formatNs(ns float64) string {
@@ -321,17 +324,12 @@ func formatNs(ns float64) string {
 		return fmt.Sprintf("%.2f ms", ns/1_000_000)
 	}
 	if ns >= 1_000 {
-		return fmt.Sprintf("%.2f µs", ns/1_000)
+		return fmt.Sprintf("%.2f us", ns/1_000)
 	}
 	return fmt.Sprintf("%.0f ns", ns)
 }
 
-func printSummary(groups []CategoryResults) {
-	fmt.Printf("%s%s╔══════════════════════════════════════════════════════════════════╗%s\n", bold, "\033[36m", reset)
-	fmt.Printf("%s%s║                         📊 Summary                               ║%s\n", bold, "\033[36m", reset)
-	fmt.Printf("%s%s╚══════════════════════════════════════════════════════════════════╝%s\n", bold, "\033[36m", reset)
-	fmt.Println()
-
+func printSummary(groups []CategoryResults, markdown bool) {
 	wins := make(map[string]int)
 	for _, cat := range groups {
 		if len(cat.Results) > 0 {
@@ -355,38 +353,65 @@ func printSummary(groups []CategoryResults) {
 	)
 
 	total := len(groups)
-	for i, fw := range sorted {
-		medal := ""
-		switch i {
-		case 0:
-			medal = "🥇"
-		case 1:
-			medal = "🥈"
-		case 2:
-			medal = "🥉"
+
+	if markdown {
+		fmt.Println("## Summary")
+		fmt.Println()
+		fmt.Println("| Rank | Framework | Wins |")
+		fmt.Println("|------|-----------|------|")
+		for i, fw := range sorted {
+			medal := ""
+			switch i {
+			case 0:
+				medal = "🥇"
+			case 1:
+				medal = "🥈"
+			case 2:
+				medal = "🥉"
+			}
+			fmt.Printf("| %s | %s | %d/%d |\n", medal, fw.name, fw.wins, total)
+		}
+		fmt.Println()
+		fmt.Println("**Frameworks compared:**")
+		fmt.Println("- **Needle** - This library (github.com/danpasecinic/needle)")
+		fmt.Println("- **samber/do** - Generics-based DI (github.com/samber/do)")
+		fmt.Println("- **uber/dig** - Reflection-based DI (go.uber.org/dig)")
+		fmt.Println("- **uber/fx** - Full application framework (go.uber.org/fx)")
+		fmt.Println()
+	} else {
+		fmt.Println("\033[1m\033[36m╔══════════════════════════════════════════════════════════════════╗\033[0m")
+		fmt.Println("\033[1m\033[36m║                           Summary                                ║\033[0m")
+		fmt.Println("\033[1m\033[36m╚══════════════════════════════════════════════════════════════════╝\033[0m")
+		fmt.Println()
+
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
+		t.AppendHeader(table.Row{"Rank", "Framework", "Wins"})
+
+		for i, fw := range sorted {
+			medal := ""
+			switch i {
+			case 0:
+				medal = "🥇"
+			case 1:
+				medal = "🥈"
+			case 2:
+				medal = "🥉"
+			}
+			t.AppendRow(table.Row{medal, fw.name, fmt.Sprintf("%d/%d", fw.wins, total)})
 		}
 
-		color := frameworkColors[fw.name]
-		if color == "" {
-			color = reset
-		}
+		t.SetStyle(table.StyleRounded)
+		t.Render()
+		fmt.Println()
 
-		bar := strings.Repeat("█", fw.wins*3)
-		fmt.Printf(
-			"  %s %s%-16s%s %s%s%s  %d/%d benchmarks\n",
-			medal, color, fw.name, reset, "\033[32m", bar, reset, fw.wins, total,
-		)
+		fmt.Println("\033[2m\033[1mFrameworks compared:\033[0m")
+		fmt.Println("  \033[32m• Needle\033[0m       - This library (github.com/danpasecinic/needle)")
+		fmt.Println("  \033[33m• samber/do\033[0m    - Generics-based DI (github.com/samber/do)")
+		fmt.Println("  \033[35m• uber/dig\033[0m     - Reflection-based DI (go.uber.org/dig)")
+		fmt.Println("  \033[34m• uber/fx\033[0m      - Full application framework (go.uber.org/fx)")
+		fmt.Println()
 	}
-
-	fmt.Println()
-	fmt.Printf("%s%sFrameworks compared:%s\n", dim, bold, reset)
-	fmt.Printf(
-		"  %s• Needle%s       - This library (github.com/danpasecinic/needle)\n", frameworkColors["Needle"], reset,
-	)
-	fmt.Printf("  %s• samber/do%s    - Generics-based DI (github.com/samber/do)\n", frameworkColors["Do"], reset)
-	fmt.Printf("  %s• uber/dig%s     - Reflection-based DI (go.uber.org/dig)\n", frameworkColors["Dig"], reset)
-	fmt.Printf("  %s• uber/fx%s      - Full application framework (go.uber.org/fx)\n", frameworkColors["Fx"], reset)
-	fmt.Println()
 }
 
 func exportJSON(results []BenchmarkResult) {
@@ -398,5 +423,5 @@ func exportJSON(results []BenchmarkResult) {
 
 	data, _ := json.MarshalIndent(output, "", "  ")
 	_ = os.WriteFile("benchmark_results.json", data, 0644)
-	fmt.Printf("%sResults exported to benchmark_results.json%s\n", dim, reset)
+	fmt.Println("\033[2mResults exported to benchmark_results.json\033[0m")
 }
