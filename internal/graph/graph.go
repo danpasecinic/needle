@@ -8,9 +8,11 @@ type Node struct {
 }
 
 type Graph struct {
-	mu    sync.RWMutex
-	nodes map[string]*Node
-	edges map[string][]string
+	mu         sync.RWMutex
+	nodes      map[string]*Node
+	edges      map[string][]string
+	cycleValid bool
+	hasCycle   bool
 }
 
 func New() *Graph {
@@ -29,6 +31,7 @@ func (g *Graph) AddNode(id string, dependencies []string) {
 		Dependencies: dependencies,
 	}
 	g.edges[id] = dependencies
+	g.cycleValid = false
 }
 
 func (g *Graph) RemoveNode(id string) {
@@ -37,6 +40,7 @@ func (g *Graph) RemoveNode(id string) {
 
 	delete(g.nodes, id)
 	delete(g.edges, id)
+	g.cycleValid = false
 }
 
 func (g *Graph) HasNode(id string) bool {
@@ -118,6 +122,7 @@ func (g *Graph) Clear() {
 
 	g.nodes = make(map[string]*Node)
 	g.edges = make(map[string][]string)
+	g.cycleValid = false
 }
 
 func (g *Graph) Clone() *Graph {
