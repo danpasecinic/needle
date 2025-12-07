@@ -85,8 +85,66 @@ func (d *CycleDetector) strongConnect(id string) {
 }
 
 func (g *Graph) HasCycle() bool {
-	cycles := g.DetectCycles()
-	return len(cycles) > 0
+	g.mu.RLock()
+	if g.cycleValid {
+		result := g.hasCycle
+		g.mu.RUnlock()
+		return result
+	}
+	g.mu.RUnlock()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.cycleValid {
+		return g.hasCycle
+	}
+
+	g.hasCycle = g.hasCycleUnsafe()
+	g.cycleValid = true
+	return g.hasCycle
+}
+
+func (g *Graph) hasCycleUnsafe() bool {
+	white := make(map[string]bool, len(g.nodes))
+	gray := make(map[string]bool, len(g.nodes))
+
+	for id := range g.nodes {
+		white[id] = true
+	}
+
+	var hasCycle bool
+	var dfs func(id string) bool
+	dfs = func(id string) bool {
+		white[id] = false
+		gray[id] = true
+
+		for _, dep := range g.edges[id] {
+			if _, exists := g.nodes[dep]; !exists {
+				continue
+			}
+			if gray[dep] {
+				return true
+			}
+			if white[dep] && dfs(dep) {
+				return true
+			}
+		}
+
+		gray[id] = false
+		return false
+	}
+
+	for id := range g.nodes {
+		if white[id] {
+			if dfs(id) {
+				hasCycle = true
+				break
+			}
+		}
+	}
+
+	return hasCycle
 }
 
 func (g *Graph) FindCyclePath(start string) []string {
