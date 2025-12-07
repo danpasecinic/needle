@@ -58,27 +58,40 @@ See the [examples](examples/) directory:
 
 ## Benchmarks
 
-### vs uber/fx
+Needle wins benchmark categories against uber/fx, samber/do, and uber/dig.
 
-| Operation                | Needle | Fx    | Speedup         |
-|--------------------------|--------|-------|-----------------|
-| Provide (10 services)    | 18μs   | 209μs | **12x faster**  |
-| Start+Stop (10 services) | 15μs   | 27μs  | **1.8x faster** |
-| Start+Stop (50 services) | 53μs   | 101μs | **1.9x faster** |
-| Memory (10 services)     | 23KB   | 169KB | **7x less**     |
+### Provider Registration
 
-<img width="1605" height="535" alt="image" src="https://github.com/user-attachments/assets/fc6d3b48-d2af-4789-ba94-45a386ab279c" />
+| Framework  | Simple | Chain | Memory (Chain) |
+|------------|--------|-------|----------------|
+| **Needle** | 780ns  | 1.6μs | 3KB            |
+| Do         | 1.9μs  | 5.0μs | 4KB            |
+| Dig        | 13μs   | 28μs  | 28KB           |
+| Fx         | 42μs   | 85μs  | 70KB           |
+
+Needle is **50x faster** than Fx for provider registration.
+
+### Service Resolution
+
+| Framework  | Singleton | Chain |
+|------------|-----------|-------|
+| Fx         | 0ns*      | 0ns*  |
+| **Needle** | 17ns      | 16ns  |
+| Do         | 152ns     | 159ns |
+| Dig        | 591ns     | 586ns |
+
+*Fx resolves at startup, not on-demand.
 
 ### Parallel Startup
 
-When services have initialization work (database connections, HTTP clients, etc.),
-parallel startup provides significant speedups:
+When services have initialization work (database connections, HTTP clients, etc.):
 
-| Scenario               | Sequential | Parallel | Speedup |
-|------------------------|------------|----------|---------|
-| 10 services × 1ms work | 23ms       | 2.5ms    | **9x**  |
-| 50 services × 1ms work | 117ms      | 2.8ms    | **42x** |
+| Scenario          | Sequential | Parallel | Speedup |
+|-------------------|------------|----------|---------|
+| 10 services × 1ms | 23ms       | 2.4ms    | **10x** |
+| 50 services × 1ms | 116ms      | 2.5ms    | **45x** |
 
+Run benchmarks: `cd benchmark && make run`
 
 ## Documentation
 
