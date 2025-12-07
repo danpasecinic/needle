@@ -89,7 +89,7 @@ func (c *Container) Register(key string, provider ProviderFunc, dependencies []s
 	c.registry.RegisterUnsafe(key, provider, dependencies)
 	c.graph.AddNodeUnsafe(key, dependencies)
 
-	if c.graph.HasCycle() {
+	if len(dependencies) > 0 && c.graph.HasCycle() {
 		c.registry.RemoveUnsafe(key)
 		c.graph.RemoveNodeUnsafe(key)
 		c.mu.Unlock()

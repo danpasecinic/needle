@@ -14,6 +14,7 @@ import (
 type Container struct {
 	internal *container.Container
 	config   *containerConfig
+	resolver *resolverAdapter
 }
 
 type containerConfig struct {
@@ -57,10 +58,12 @@ func newContainer(opts ...Option) *Container {
 		internalCfg.OnStop = append(internalCfg.OnStop, container.StopHook(hook))
 	}
 
-	return &Container{
+	c := &Container{
 		internal: container.New(internalCfg),
 		config:   cfg,
 	}
+	c.resolver = &resolverAdapter{container: c}
+	return c
 }
 
 func (c *Container) Validate() error {
