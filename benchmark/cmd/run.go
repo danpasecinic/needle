@@ -62,7 +62,7 @@ func main() {
 	}
 
 	cmd := exec.CommandContext(
-		context.Background(), "go", "test", "-bench=.", "-benchmem", "-count=3", "-benchtime=100ms",
+		context.Background(), "go", "test", "-bench=.", "-benchmem", "-count=1", "-benchtime=50ms",
 	)
 	cmd.Dir = benchDir
 	output, err := cmd.Output()
