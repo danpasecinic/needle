@@ -80,24 +80,23 @@ func New(cfg *Config) *Container {
 
 func (c *Container) Register(key string, provider ProviderFunc, dependencies []string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
-	if c.registry.Has(key) {
+	if c.registry.HasUnsafe(key) {
+		c.mu.Unlock()
 		return fmt.Errorf("service already registered: %s", key)
 	}
 
-	if err := c.registry.Register(key, provider, dependencies); err != nil {
-		return err
-	}
-
-	c.graph.AddNode(key, dependencies)
+	c.registry.RegisterUnsafe(key, provider, dependencies)
+	c.graph.AddNodeUnsafe(key, dependencies)
 
 	if c.graph.HasCycle() {
-		c.registry.Remove(key)
-		c.graph.RemoveNode(key)
-		cyclePath := c.graph.FindCyclePath(key)
-		return fmt.Errorf("circular dependency detected: %v", cyclePath)
+		c.registry.RemoveUnsafe(key)
+		c.graph.RemoveNodeUnsafe(key)
+		c.mu.Unlock()
+		return fmt.Errorf("circular dependency detected for: %s", key)
 	}
+
+	c.mu.Unlock()
 
 	for _, hook := range c.onProvide {
 		hook(key)
@@ -108,17 +107,16 @@ func (c *Container) Register(key string, provider ProviderFunc, dependencies []s
 
 func (c *Container) RegisterValue(key string, value any) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
-	if c.registry.Has(key) {
+	if c.registry.HasUnsafe(key) {
+		c.mu.Unlock()
 		return fmt.Errorf("service already registered: %s", key)
 	}
 
-	if err := c.registry.RegisterValue(key, value); err != nil {
-		return err
-	}
+	c.registry.RegisterValueUnsafe(key, value)
+	c.graph.AddNodeUnsafe(key, nil)
 
-	c.graph.AddNode(key, nil)
+	c.mu.Unlock()
 
 	for _, hook := range c.onProvide {
 		hook(key)

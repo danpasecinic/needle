@@ -45,7 +45,6 @@ func NewRegistry() *Registry {
 func (r *Registry) Register(key string, provider ProviderFunc, dependencies []string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	r.services[key] = &ServiceEntry{
 		Key:          key,
 		Provider:     provider,
@@ -54,10 +53,17 @@ func (r *Registry) Register(key string, provider ProviderFunc, dependencies []st
 	return nil
 }
 
+func (r *Registry) RegisterUnsafe(key string, provider ProviderFunc, dependencies []string) {
+	r.services[key] = &ServiceEntry{
+		Key:          key,
+		Provider:     provider,
+		Dependencies: dependencies,
+	}
+}
+
 func (r *Registry) RegisterValue(key string, value any) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	r.services[key] = &ServiceEntry{
 		Key:          key,
 		Instance:     value,
@@ -66,10 +72,22 @@ func (r *Registry) RegisterValue(key string, value any) error {
 	return nil
 }
 
+func (r *Registry) RegisterValueUnsafe(key string, value any) {
+	r.services[key] = &ServiceEntry{
+		Key:          key,
+		Instance:     value,
+		Instantiated: true,
+	}
+}
+
 func (r *Registry) Has(key string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	_, exists := r.services[key]
+	return exists
+}
 
+func (r *Registry) HasUnsafe(key string) bool {
 	_, exists := r.services[key]
 	return exists
 }
@@ -131,7 +149,10 @@ func (r *Registry) Clear() {
 func (r *Registry) Remove(key string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	delete(r.services, key)
+}
 
+func (r *Registry) RemoveUnsafe(key string) {
 	delete(r.services, key)
 }
 
