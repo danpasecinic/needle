@@ -111,6 +111,22 @@ func (r *Registry) GetInstance(key string) (any, bool) {
 	return entry.Instance, true
 }
 
+func (r *Registry) GetInstanceFast(key string) (any, bool) {
+	r.mu.RLock()
+	entry, exists := r.services[key]
+	if !exists {
+		r.mu.RUnlock()
+		return nil, false
+	}
+	if entry.Instantiated && entry.Scope == scope.Singleton {
+		instance := entry.Instance
+		r.mu.RUnlock()
+		return instance, true
+	}
+	r.mu.RUnlock()
+	return nil, false
+}
+
 func (r *Registry) SetInstance(key string, instance any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
