@@ -29,6 +29,30 @@
 //	needle.ProvideValue[T](c, value)         // Register an existing value
 //	needle.ProvideNamed[T](c, "name", prov)  // Register a named provider
 //
+// # Auto-Wiring
+//
+// Reduce boilerplate with constructor auto-wiring and struct tag injection.
+//
+// Constructor auto-wiring automatically resolves function parameters:
+//
+//	func NewUserService(db *Database, log *Logger) *UserService {
+//	    return &UserService{db: db, log: log}
+//	}
+//	needle.ProvideFunc[*UserService](c, NewUserService)
+//
+// Struct tag injection uses the `needle` tag to inject fields:
+//
+//	type UserService struct {
+//	    DB     *Database `needle:""`           // inject by type
+//	    Log    *Logger   `needle:"appLogger"`  // inject by name
+//	    Cache  *Cache    `needle:",optional"`  // optional dependency
+//	}
+//	needle.ProvideStruct[*UserService](c)
+//
+// Or invoke directly without registering:
+//
+//	svc, err := needle.InvokeStruct[*UserService](c)
+//
 // # Resolution
 //
 // Resolve dependencies using the Invoke functions:
