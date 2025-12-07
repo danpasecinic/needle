@@ -197,6 +197,22 @@
 //	err := c.Ready(ctx)          // Fails if any ReadinessChecker returns error
 //	reports := c.Health(ctx)     // Get detailed health reports with latency
 //
+// # Hot Reload / Dynamic Replacement
+//
+// Replace services at runtime without restarting the container:
+//
+//	needle.ReplaceValue(c, &Config{NewValue: "updated"})
+//	needle.Replace(c, newProvider)
+//	needle.ReplaceFunc[*Service](c, NewServiceConstructor)
+//	needle.ReplaceStruct[*Service](c)
+//
+// Named variants are also available:
+//
+//	needle.ReplaceNamedValue(c, "primary", &Config{})
+//	needle.ReplaceNamed(c, "primary", provider)
+//
+// This is useful for feature flags, A/B testing, or configuration updates.
+//
 // # Metrics Observers
 //
 // Observe container operations for metrics integration:

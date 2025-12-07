@@ -9,6 +9,7 @@ A modern, type-safe dependency injection framework for Go 1.25+.
 
 - **Type-safe generics** - Compile-time type checking with `Provide[T]` and `Invoke[T]`
 - **Auto-wiring** - Constructor injection and struct tag injection
+- **Hot reload** - Replace services at runtime without restart
 - **Zero dependencies** - Only Go standard library
 - **Cycle detection** - Automatically detects circular dependencies
 - **Multiple scopes** - Singleton, Transient, Request, Pooled
