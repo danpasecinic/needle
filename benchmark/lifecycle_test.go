@@ -36,11 +36,11 @@ func BenchmarkLifecycle_50_Fx(b *testing.B) {
 }
 
 func BenchmarkLifecycleWithWork_10_Needle(b *testing.B) {
-	benchmarkLifecycleNeedleWithWork(b, 10, false, time.Millisecond)
+	benchmarkLifecycleNeedleWithWork(b, 10, false)
 }
 
 func BenchmarkLifecycleWithWork_10_NeedleParallel(b *testing.B) {
-	benchmarkLifecycleNeedleWithWork(b, 10, true, time.Millisecond)
+	benchmarkLifecycleNeedleWithWork(b, 10, true)
 }
 
 func BenchmarkLifecycleWithWork_10_Fx(b *testing.B) {
@@ -48,11 +48,11 @@ func BenchmarkLifecycleWithWork_10_Fx(b *testing.B) {
 }
 
 func BenchmarkLifecycleWithWork_50_Needle(b *testing.B) {
-	benchmarkLifecycleNeedleWithWork(b, 50, false, time.Millisecond)
+	benchmarkLifecycleNeedleWithWork(b, 50, false)
 }
 
 func BenchmarkLifecycleWithWork_50_NeedleParallel(b *testing.B) {
-	benchmarkLifecycleNeedleWithWork(b, 50, true, time.Millisecond)
+	benchmarkLifecycleNeedleWithWork(b, 50, true)
 }
 
 func BenchmarkLifecycleWithWork_50_Fx(b *testing.B) {
@@ -86,7 +86,7 @@ func benchmarkLifecycleNeedle(b *testing.B, count int, parallel bool) {
 	}
 }
 
-func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool, work time.Duration) {
+func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -105,13 +105,13 @@ func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool, wo
 				},
 				needle.WithOnStart(
 					func(ctx context.Context) error {
-						time.Sleep(work)
+						time.Sleep(time.Millisecond)
 						return nil
 					},
 				),
 				needle.WithOnStop(
 					func(ctx context.Context) error {
-						time.Sleep(work)
+						time.Sleep(time.Millisecond)
 						return nil
 					},
 				),

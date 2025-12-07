@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -50,7 +51,7 @@ func main() {
 	fmt.Println()
 	printHeader(*markdown)
 
-	benchDir := "."
+	benchDir := ".."
 	args := flag.Args()
 	if len(args) > 0 {
 		benchDir = args[0]
@@ -60,7 +61,9 @@ func main() {
 		fmt.Printf("\033[2mRunning benchmarks...\033[0m\n\n")
 	}
 
-	cmd := exec.Command("go", "test", "-bench=.", "-benchmem", "-count=3", "-benchtime=100ms")
+	cmd := exec.CommandContext(
+		context.Background(), "go", "test", "-bench=.", "-benchmem", "-count=3", "-benchtime=100ms",
+	)
 	cmd.Dir = benchDir
 	output, err := cmd.Output()
 	if err != nil {
@@ -99,7 +102,6 @@ func printHeader(markdown bool) {
 }
 
 func parseResults(output []byte) []BenchmarkResult {
-	var results []BenchmarkResult
 	benchPattern := regexp.MustCompile(`^Benchmark(\w+)-\d+\s+(\d+)\s+([\d.]+) ns/op\s+(\d+) B/op\s+(\d+) allocs/op`)
 	namePattern := regexp.MustCompile(`^([^_]+)_([^_]+)_(\w+)$`)
 
@@ -149,6 +151,7 @@ func parseResults(output []byte) []BenchmarkResult {
 		)
 	}
 
+	results := make([]BenchmarkResult, 0, len(seen))
 	for _, runs := range seen {
 		if len(runs) == 0 {
 			continue
@@ -342,7 +345,7 @@ func printSummary(groups []CategoryResults, markdown bool) {
 		wins int
 	}
 
-	var sorted []frameworkWins
+	sorted := make([]frameworkWins, 0, len(wins))
 	for name, count := range wins {
 		sorted = append(sorted, frameworkWins{name, count})
 	}
