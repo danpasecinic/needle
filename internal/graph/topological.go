@@ -8,34 +8,21 @@ func (g *Graph) TopologicalSort() ([]string, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if g.HasCycle() {
-		return nil, ErrCycleDetected
+	nodeCount := len(g.nodes)
+	dependents := make(map[string][]string, nodeCount)
+	inDegree := make(map[string]int, nodeCount)
+
+	for id := range g.nodes {
+		inDegree[id] = 0
 	}
 
-	dependents := make(map[string][]string)
-	for id := range g.nodes {
-		dependents[id] = nil
-	}
 	for id, deps := range g.edges {
 		for _, dep := range deps {
 			if _, exists := g.nodes[dep]; exists {
 				dependents[dep] = append(dependents[dep], id)
+				inDegree[id]++
 			}
 		}
-	}
-
-	inDegree := make(map[string]int)
-	for id := range g.nodes {
-		inDegree[id] = len(g.edges[id])
-	}
-	for id := range inDegree {
-		count := 0
-		for _, dep := range g.edges[id] {
-			if _, exists := g.nodes[dep]; exists {
-				count++
-			}
-		}
-		inDegree[id] = count
 	}
 
 	var queue []string
@@ -161,11 +148,7 @@ func (g *Graph) ParallelStartupGroups() ([]ParallelGroup, error) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if g.HasCycle() {
-		return nil, ErrCycleDetected
-	}
-
-	levels := make(map[string]int)
+	levels := make(map[string]int, len(g.nodes))
 
 	var calculateLevel func(id string) int
 	calculateLevel = func(id string) int {
