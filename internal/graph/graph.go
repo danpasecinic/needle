@@ -14,10 +14,9 @@ type Graph struct {
 	cycleValid bool
 	hasCycle   bool
 
-	topoValid      bool
-	topoOrder      []string
-	topoOrderRev   []string
-	parallelGroups []ParallelGroup
+	topoValid    bool
+	topoOrder    []string
+	topoOrderRev []string
 }
 
 func New() *Graph {
