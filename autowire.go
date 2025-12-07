@@ -3,9 +3,9 @@ package needle
 import (
 	"context"
 	"fmt"
-	"reflect"
+	reflectPkg "reflect"
 
-	internReflect "github.com/danpasecinic/needle/internal/reflect"
+	"github.com/danpasecinic/needle/internal/reflect"
 )
 
 const TagKey = "needle"
@@ -17,22 +17,22 @@ func InvokeStruct[T any](c *Container) (T, error) {
 func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 	var zero T
 
-	t := reflect.TypeOf(zero)
-	isPtr := t.Kind() == reflect.Ptr
+	t := reflectPkg.TypeOf(zero)
+	isPtr := t.Kind() == reflectPkg.Ptr
 	if isPtr {
 		t = t.Elem()
 	}
 
-	if t.Kind() != reflect.Struct {
+	if t.Kind() != reflectPkg.Struct {
 		return zero, fmt.Errorf("InvokeStruct requires a struct type, got %s", t.Kind())
 	}
 
-	fields, err := internReflect.StructFields[T](TagKey)
+	fields, err := reflect.StructFields[T](TagKey)
 	if err != nil {
 		return zero, err
 	}
 
-	structVal := reflect.New(t).Elem()
+	structVal := reflectPkg.New(t).Elem()
 
 	for _, field := range fields {
 		var key string
@@ -62,7 +62,7 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 			return zero, fmt.Errorf("cannot set field %s (unexported)", field.Name)
 		}
 
-		instanceVal := reflect.ValueOf(instance)
+		instanceVal := reflectPkg.ValueOf(instance)
 		if !instanceVal.Type().AssignableTo(fieldVal.Type()) {
 			return zero, fmt.Errorf(
 				"cannot assign %s to field %s of type %s",
@@ -74,7 +74,7 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 	}
 
 	if isPtr {
-		ptr := reflect.New(t)
+		ptr := reflectPkg.New(t)
 		ptr.Elem().Set(structVal)
 		return ptr.Interface().(T), nil
 	}
@@ -83,7 +83,7 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 }
 
 func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) error {
-	params, returnType, err := internReflect.FuncParams(constructor)
+	params, returnType, err := reflect.FuncParams(constructor)
 	if err != nil {
 		return err
 	}
@@ -92,15 +92,15 @@ func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) e
 		return fmt.Errorf("constructor must return at least one value")
 	}
 
-	expectedType := reflect.TypeOf((*T)(nil)).Elem()
+	expectedType := reflectPkg.TypeOf((*T)(nil)).Elem()
 	if !returnType.AssignableTo(expectedType) {
 		return fmt.Errorf("constructor returns %s, expected %s", returnType, expectedType)
 	}
 
-	fnVal := reflect.ValueOf(constructor)
+	fnVal := reflectPkg.ValueOf(constructor)
 	fnType := fnVal.Type()
 
-	hasError := fnType.NumOut() == 2 && fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem())
+	hasError := fnType.NumOut() == 2 && fnType.Out(1).Implements(reflectPkg.TypeOf((*error)(nil)).Elem())
 
 	deps := make([]string, len(params))
 	for i, p := range params {
@@ -110,13 +110,13 @@ func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) e
 	provider := func(ctx context.Context, r Resolver) (T, error) {
 		var zero T
 
-		args := make([]reflect.Value, len(params))
+		args := make([]reflectPkg.Value, len(params))
 		for i, p := range params {
 			instance, err := c.internal.Resolve(ctx, p.TypeKey)
 			if err != nil {
 				return zero, fmt.Errorf("failed to resolve parameter %d (%s): %w", i, p.TypeKey, err)
 			}
-			args[i] = reflect.ValueOf(instance)
+			args[i] = reflectPkg.ValueOf(instance)
 		}
 
 		results := fnVal.Call(args)
@@ -143,7 +143,7 @@ func ProvideStruct[T any](c *Container, opts ...ProviderOption) error {
 		return InvokeStructCtx[T](ctx, c)
 	}
 
-	fields, _ := internReflect.StructFields[T](TagKey)
+	fields, _ := reflect.StructFields[T](TagKey)
 	deps := make([]string, 0, len(fields))
 	for _, f := range fields {
 		if !f.Optional {
