@@ -13,6 +13,11 @@ type Graph struct {
 	edges      map[string][]string
 	cycleValid bool
 	hasCycle   bool
+
+	topoValid      bool
+	topoOrder      []string
+	topoOrderRev   []string
+	parallelGroups []ParallelGroup
 }
 
 func New() *Graph {
@@ -39,6 +44,7 @@ func (g *Graph) addNodeUnsafe(id string, dependencies []string) {
 	}
 	g.edges[id] = dependencies
 	g.cycleValid = false
+	g.topoValid = false
 }
 
 func (g *Graph) RemoveNode(id string) {
@@ -55,6 +61,7 @@ func (g *Graph) removeNodeUnsafe(id string) {
 	delete(g.nodes, id)
 	delete(g.edges, id)
 	g.cycleValid = false
+	g.topoValid = false
 }
 
 func (g *Graph) HasNode(id string) bool {

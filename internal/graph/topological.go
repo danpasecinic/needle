@@ -42,7 +42,6 @@ func (g *Graph) TopologicalSort() ([]string, error) {
 }
 
 func (g *Graph) topologicalSortUnsafe() ([]string, error) {
-
 	nodeCount := len(g.nodes)
 	dependents := make(map[string][]string, nodeCount)
 	inDegree := make(map[string]int, nodeCount)
