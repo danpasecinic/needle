@@ -261,8 +261,15 @@ func printCategory(cat CategoryResults, markdown bool) {
 			comparison = fmt.Sprintf("%.1fx slower", ratio)
 		}
 
+		frameworkName := r.Framework
+		if !markdown {
+			if color, ok := frameworkColors[r.Framework]; ok {
+				frameworkName = color.Sprint(r.Framework)
+			}
+		}
+
 		row := table.Row{
-			r.Framework,
+			frameworkName,
 			formatNs(r.NsPerOp),
 			fmt.Sprintf("%d B", r.BytesPerOp),
 			fmt.Sprintf("%d", r.AllocsOp),
@@ -279,18 +286,6 @@ func printCategory(cat CategoryResults, markdown bool) {
 		t.SetStyle(table.StyleRounded)
 		t.Style().Title.Align = text.AlignCenter
 		t.Style().Options.SeparateRows = false
-
-		for i, r := range cat.Results {
-			if color, ok := frameworkColors[r.Framework]; ok {
-				t.SetColumnConfigs(
-					[]table.ColumnConfig{
-						{Number: 1, Colors: text.Colors{color}},
-					},
-				)
-				_ = i
-			}
-		}
-
 		t.Render()
 		fmt.Println()
 	}
@@ -336,7 +331,11 @@ func printSummary(groups []CategoryResults, markdown bool) {
 	wins := make(map[string]int)
 	for _, cat := range groups {
 		if len(cat.Results) > 0 {
-			wins[cat.Results[0].Framework]++
+			winner := cat.Results[0].Framework
+			if winner == "NeedleParallel" {
+				winner = "Needle"
+			}
+			wins[winner]++
 		}
 	}
 
