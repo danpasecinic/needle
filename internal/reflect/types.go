@@ -2,6 +2,7 @@ package reflect
 
 import (
 	"reflect"
+	"strconv"
 	"sync"
 )
 
@@ -38,12 +39,12 @@ func buildTypeKey(t reflect.Type) string {
 	}
 
 	switch t.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return "*" + buildTypeKey(t.Elem())
 	case reflect.Slice:
 		return "[]" + buildTypeKey(t.Elem())
 	case reflect.Array:
-		return "[" + string(rune(t.Len())) + "]" + buildTypeKey(t.Elem())
+		return "[" + strconv.Itoa(t.Len()) + "]" + buildTypeKey(t.Elem())
 	case reflect.Map:
 		return "map[" + buildTypeKey(t.Key()) + "]" + buildTypeKey(t.Elem())
 	case reflect.Chan:

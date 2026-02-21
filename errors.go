@@ -87,10 +87,11 @@ func (e *Error) Unwrap() error {
 }
 
 func (e *Error) Is(target error) bool {
-	if t, ok := errors.AsType[*Error](target); ok {
-		return e.Code == t.Code
+	t, ok := target.(*Error)
+	if !ok {
+		return false
 	}
-	return false
+	return e.Code == t.Code
 }
 
 func (e *Error) WithService(service string) *Error {

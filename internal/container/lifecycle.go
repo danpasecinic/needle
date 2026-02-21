@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -240,15 +241,16 @@ func (c *Container) stopService(ctx context.Context, key string) error {
 	}
 
 	start := time.Now()
-	var stopErr error
+	var errs []error
 
 	for i := len(entry.OnStop) - 1; i >= 0; i-- {
 		c.logger.Debug("running OnStop hook", "service", key)
 		if err := entry.OnStop[i](ctx); err != nil {
-			stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
+			errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
 		}
 	}
 
+	stopErr := errors.Join(errs...)
 	c.callStopHooks(key, time.Since(start), stopErr)
 	return stopErr
 }
