@@ -212,14 +212,14 @@ func TestImplements(t *testing.T) {
 
 func BenchmarkTypeKey(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = TypeKey[*testStruct]()
 	}
 }
 
 func BenchmarkTypeKeyNamed(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = TypeKeyNamed[*testStruct]("primary")
 	}
 }

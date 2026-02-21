@@ -178,7 +178,7 @@ func errModuleApplyFailed(moduleName string, cause error) *Error {
 	)
 }
 
-func errModuleInvalidProvider(provider any) *Error {
+func errModuleInvalidProvider(_ any) *Error {
 	return newError(
 		ErrCodeModuleInvalidProvider,
 		"invalid provider type in module",

@@ -65,10 +65,10 @@ type Error struct {
 
 func (e *Error) Error() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("[%s]", e.Code))
+	fmt.Fprintf(&b, "[%s]", e.Code)
 
 	if e.Service != "" {
-		b.WriteString(fmt.Sprintf(" service=%q:", e.Service))
+		fmt.Fprintf(&b, " service=%q:", e.Service)
 	}
 
 	b.WriteString(" ")
@@ -87,8 +87,7 @@ func (e *Error) Unwrap() error {
 }
 
 func (e *Error) Is(target error) bool {
-	var t *Error
-	if errors.As(target, &t) {
+	if t, ok := errors.AsType[*Error](target); ok {
 		return e.Code == t.Code
 	}
 	return false

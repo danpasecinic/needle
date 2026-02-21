@@ -12,7 +12,7 @@ func TypeKey[T any]() string {
 	var zero T
 	t := reflect.TypeOf(zero)
 	if t == nil {
-		t = reflect.TypeOf((*T)(nil)).Elem()
+		t = reflect.TypeFor[T]()
 	}
 	return typeKeyFromReflect(t)
 }
@@ -76,7 +76,7 @@ func TypeKeyNamed[T any](name string) string {
 	var zero T
 	t := reflect.TypeOf(zero)
 	if t == nil {
-		t = reflect.TypeOf((*T)(nil)).Elem()
+		t = reflect.TypeFor[T]()
 	}
 
 	key := namedKey{t: t, name: name}
@@ -100,7 +100,7 @@ func IsNil(v any) bool {
 
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	default:
 		return false
@@ -111,13 +111,13 @@ func TypeName[T any]() string {
 	var zero T
 	t := reflect.TypeOf(zero)
 	if t == nil {
-		t = reflect.TypeOf((*T)(nil)).Elem()
+		t = reflect.TypeFor[T]()
 	}
 	return t.String()
 }
 
 func IsInterface[T any]() bool {
-	t := reflect.TypeOf((*T)(nil)).Elem()
+	t := reflect.TypeFor[T]()
 	return t.Kind() == reflect.Interface
 }
 
@@ -125,7 +125,7 @@ func Implements[T any](v any) bool {
 	if v == nil {
 		return false
 	}
-	t := reflect.TypeOf((*T)(nil)).Elem()
+	t := reflect.TypeFor[T]()
 	return reflect.TypeOf(v).Implements(t)
 }
 
@@ -138,8 +138,8 @@ type FieldInfo struct {
 }
 
 func StructFields[T any](tagKey string) ([]FieldInfo, error) {
-	t := reflect.TypeOf((*T)(nil)).Elem()
-	if t.Kind() == reflect.Ptr {
+	t := reflect.TypeFor[T]()
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {

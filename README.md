@@ -1,26 +1,17 @@
 # Needle
 
-A modern, type-safe dependency injection framework for Go 1.25+.
+A modern, type-safe dependency injection framework for Go.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/danpasecinic/needle.svg)](https://pkg.go.dev/github.com/danpasecinic/needle)
 [![Go Report Card](https://goreportcard.com/badge/github.com/danpasecinic/needle)](https://goreportcard.com/report/github.com/danpasecinic/needle)
 
 ## Features
 
-- **Type-safe generics** - Compile-time type checking with `Provide[T]` and `Invoke[T]`
-- **Auto-wiring** - Constructor injection and struct tag injection
-- **Hot reload** - Replace services at runtime without restart
-- **Zero dependencies** - Only Go standard library
-- **Cycle detection** - Automatically detects circular dependencies
-- **Multiple scopes** - Singleton, Transient, Request, Pooled
-- **Lifecycle management** - OnStart/OnStop hooks with ordering
-- **Lazy providers** - Defer instantiation until first use
-- **Parallel startup** - Start independent services concurrently
-- **Modules** - Group related providers
-- **Interface binding** - Bind interfaces to implementations
-- **Decorators** - Wrap services with cross-cutting concerns
-- **Health checks** - Liveness and readiness probes
-- **Optional dependencies** - Type-safe optional resolution
+Needle uses Go generics for compile-time type safety (`Provide[T]`, `Invoke[T]`) and has zero external dependencies.
+
+It supports constructor auto-wiring, struct tag injection, multiple scopes (singleton, transient, request, pooled), and lifecycle hooks that run in dependency order. Services can start in parallel, be lazily initialized, or be replaced at runtime without restarting the container.
+
+You can group providers into modules, bind interfaces to implementations, wrap services with decorators, and resolve optional dependencies with a built-in `Optional[T]` type. Health and readiness checks are supported out of the box.
 
 ## Installation
 
