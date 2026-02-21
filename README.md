@@ -1,6 +1,6 @@
 # Needle
 
-A modern, type-safe dependency injection framework for Go 1.25+.
+A modern, type-safe dependency injection framework for Go.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/danpasecinic/needle.svg)](https://pkg.go.dev/github.com/danpasecinic/needle)
 [![Go Report Card](https://goreportcard.com/badge/github.com/danpasecinic/needle)](https://goreportcard.com/report/github.com/danpasecinic/needle)
