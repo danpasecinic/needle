@@ -369,9 +369,8 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 	c := needle.New()
 	_ = needle.ProvideValue(c, &Config{Port: 8080})
 
-	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = needle.Invoke[*Config](c)
 	}
 }
@@ -380,9 +379,8 @@ func BenchmarkMustInvoke(b *testing.B) {
 	c := needle.New()
 	_ = needle.ProvideValue(c, &Config{Port: 8080})
 
-	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = needle.MustInvoke[*Config](c)
 	}
 }

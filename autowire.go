@@ -18,7 +18,7 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 	var zero T
 
 	t := reflectPkg.TypeOf(zero)
-	isPtr := t.Kind() == reflectPkg.Ptr
+	isPtr := t.Kind() == reflectPkg.Pointer
 	if isPtr {
 		t = t.Elem()
 	}
@@ -100,7 +100,7 @@ func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) e
 	fnVal := reflectPkg.ValueOf(constructor)
 	fnType := fnVal.Type()
 
-	hasError := fnType.NumOut() == 2 && fnType.Out(1).Implements(reflectPkg.TypeOf((*error)(nil)).Elem())
+	hasError := fnType.NumOut() == 2 && fnType.Out(1).Implements(reflectPkg.TypeFor[error]())
 
 	deps := make([]string, len(params))
 	for i, p := range params {
