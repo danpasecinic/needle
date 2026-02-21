@@ -124,7 +124,7 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 	return entry.Instance, nil
 }
 
-func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {
+func (c *Container) runLazyStart(ctx context.Context, key string, _ *ServiceEntry) error {
 	start := time.Now()
 	var startErr error
 
