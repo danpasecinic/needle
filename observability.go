@@ -62,53 +62,24 @@ func (c *Container) Health(ctx context.Context) []HealthReport {
 }
 
 func (c *Container) checkHealth(ctx context.Context) []HealthReport {
-	keys := c.internal.Keys()
-	var reports []HealthReport
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	for _, key := range keys {
-		instance, ok := c.internal.GetInstance(key)
-		if !ok {
-			continue
+	return c.runChecks(ctx, func(instance any) func(context.Context) error {
+		if hc, ok := instance.(HealthChecker); ok {
+			return hc.HealthCheck
 		}
-
-		checker, ok := instance.(HealthChecker)
-		if !ok {
-			continue
-		}
-
-		wg.Add(1)
-		go func(k string, hc HealthChecker) {
-			defer wg.Done()
-
-			start := time.Now()
-			err := hc.HealthCheck(ctx)
-			latency := time.Since(start)
-
-			report := HealthReport{
-				Name:    k,
-				Latency: latency,
-			}
-
-			if err != nil {
-				report.Status = HealthStatusDown
-				report.Error = err
-			} else {
-				report.Status = HealthStatusUp
-			}
-
-			mu.Lock()
-			reports = append(reports, report)
-			mu.Unlock()
-		}(key, checker)
-	}
-
-	wg.Wait()
-	return reports
+		return nil
+	})
 }
 
 func (c *Container) checkReadiness(ctx context.Context) []HealthReport {
+	return c.runChecks(ctx, func(instance any) func(context.Context) error {
+		if rc, ok := instance.(ReadinessChecker); ok {
+			return rc.ReadinessCheck
+		}
+		return nil
+	})
+}
+
+func (c *Container) runChecks(ctx context.Context, extractCheck func(any) func(context.Context) error) []HealthReport {
 	keys := c.internal.Keys()
 	var reports []HealthReport
 	var mu sync.Mutex
@@ -120,17 +91,17 @@ func (c *Container) checkReadiness(ctx context.Context) []HealthReport {
 			continue
 		}
 
-		checker, ok := instance.(ReadinessChecker)
-		if !ok {
+		check := extractCheck(instance)
+		if check == nil {
 			continue
 		}
 
 		wg.Add(1)
-		go func(k string, rc ReadinessChecker) {
+		go func(k string, fn func(context.Context) error) {
 			defer wg.Done()
 
 			start := time.Now()
-			err := rc.ReadinessCheck(ctx)
+			err := fn(ctx)
 			latency := time.Since(start)
 
 			report := HealthReport{
@@ -148,7 +119,7 @@ func (c *Container) checkReadiness(ctx context.Context) []HealthReport {
 			mu.Lock()
 			reports = append(reports, report)
 			mu.Unlock()
-		}(key, checker)
+		}(key, check)
 	}
 
 	wg.Wait()

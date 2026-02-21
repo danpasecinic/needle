@@ -82,19 +82,19 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 	return structVal.Interface().(T), nil
 }
 
-func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) error {
+func buildFuncProvider[T any](c *Container, constructor any) (Provider[T], []ProviderOption, error) {
 	params, returnType, err := reflect.FuncParams(constructor)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	if returnType == nil {
-		return fmt.Errorf("constructor must return at least one value")
+		return nil, nil, fmt.Errorf("constructor must return at least one value")
 	}
 
 	expectedType := reflectPkg.TypeOf((*T)(nil)).Elem()
 	if !returnType.AssignableTo(expectedType) {
-		return fmt.Errorf("constructor returns %s, expected %s", returnType, expectedType)
+		return nil, nil, fmt.Errorf("constructor returns %s, expected %s", returnType, expectedType)
 	}
 
 	fnVal := reflectPkg.ValueOf(constructor)
@@ -128,17 +128,10 @@ func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) e
 		return results[0].Interface().(T), nil
 	}
 
-	opts = append([]ProviderOption{WithDependencies(deps...)}, opts...)
-	return Provide(c, provider, opts...)
+	return provider, []ProviderOption{WithDependencies(deps...)}, nil
 }
 
-func MustProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) {
-	if err := ProvideFunc[T](c, constructor, opts...); err != nil {
-		panic(err)
-	}
-}
-
-func ProvideStruct[T any](c *Container, opts ...ProviderOption) error {
+func buildStructProvider[T any](c *Container) (Provider[T], []ProviderOption) {
 	provider := func(ctx context.Context, r Resolver) (T, error) {
 		return InvokeStructCtx[T](ctx, c)
 	}
@@ -155,7 +148,28 @@ func ProvideStruct[T any](c *Container, opts ...ProviderOption) error {
 		}
 	}
 
-	opts = append([]ProviderOption{WithDependencies(deps...)}, opts...)
+	return provider, []ProviderOption{WithDependencies(deps...)}
+}
+
+func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) error {
+	provider, depOpts, err := buildFuncProvider[T](c, constructor)
+	if err != nil {
+		return err
+	}
+
+	opts = append(depOpts, opts...)
+	return Provide(c, provider, opts...)
+}
+
+func MustProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) {
+	if err := ProvideFunc[T](c, constructor, opts...); err != nil {
+		panic(err)
+	}
+}
+
+func ProvideStruct[T any](c *Container, opts ...ProviderOption) error {
+	provider, depOpts := buildStructProvider[T](c)
+	opts = append(depOpts, opts...)
 	return Provide(c, provider, opts...)
 }
 

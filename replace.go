@@ -2,8 +2,6 @@ package needle
 
 import (
 	"context"
-	"fmt"
-	reflectPkg "reflect"
 
 	"github.com/danpasecinic/needle/internal/container"
 	"github.com/danpasecinic/needle/internal/reflect"
@@ -97,48 +95,12 @@ func MustReplaceValue[T any](c *Container, value T, opts ...ProviderOption) {
 }
 
 func ReplaceFunc[T any](c *Container, constructor any, opts ...ProviderOption) error {
-	params, returnType, err := reflect.FuncParams(constructor)
+	provider, depOpts, err := buildFuncProvider[T](c, constructor)
 	if err != nil {
 		return err
 	}
 
-	if returnType == nil {
-		return fmt.Errorf("constructor must return at least one value")
-	}
-
-	fnVal := reflectPkg.ValueOf(constructor)
-	fnType := fnVal.Type()
-
-	hasError := fnType.NumOut() == 2 &&
-		fnType.Out(1).Implements(reflectPkg.TypeOf((*error)(nil)).Elem())
-
-	deps := make([]string, len(params))
-	for i, p := range params {
-		deps[i] = p.TypeKey
-	}
-
-	provider := func(ctx context.Context, r Resolver) (T, error) {
-		var zero T
-
-		args := make([]reflectPkg.Value, len(params))
-		for i, p := range params {
-			instance, err := c.internal.Resolve(ctx, p.TypeKey)
-			if err != nil {
-				return zero, fmt.Errorf("failed to resolve parameter %d (%s): %w", i, p.TypeKey, err)
-			}
-			args[i] = reflectPkg.ValueOf(instance)
-		}
-
-		results := fnVal.Call(args)
-
-		if hasError && len(results) == 2 && !results[1].IsNil() {
-			return zero, results[1].Interface().(error)
-		}
-
-		return results[0].Interface().(T), nil
-	}
-
-	opts = append([]ProviderOption{WithDependencies(deps...)}, opts...)
+	opts = append(depOpts, opts...)
 	return Replace(c, provider, opts...)
 }
 
@@ -149,23 +111,8 @@ func MustReplaceFunc[T any](c *Container, constructor any, opts ...ProviderOptio
 }
 
 func ReplaceStruct[T any](c *Container, opts ...ProviderOption) error {
-	provider := func(ctx context.Context, r Resolver) (T, error) {
-		return InvokeStructCtx[T](ctx, c)
-	}
-
-	fields, _ := reflect.StructFields[T](TagKey)
-	deps := make([]string, 0, len(fields))
-	for _, f := range fields {
-		if !f.Optional {
-			if f.Named != "" {
-				deps = append(deps, f.TypeKey+"#"+f.Named)
-			} else {
-				deps = append(deps, f.TypeKey)
-			}
-		}
-	}
-
-	opts = append([]ProviderOption{WithDependencies(deps...)}, opts...)
+	provider, depOpts := buildStructProvider[T](c)
+	opts = append(depOpts, opts...)
 	return Replace(c, provider, opts...)
 }
 
