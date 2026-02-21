@@ -6,19 +6,16 @@ func (c *Container) Replace(key string, provider ProviderFunc, dependencies []st
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.registry.Remove(key)
-	c.graph.RemoveNode(key)
+	c.registry.RemoveUnsafe(key)
+	c.graph.RemoveNodeUnsafe(key)
 
-	if err := c.registry.Register(key, provider, dependencies); err != nil {
-		return err
-	}
+	c.registry.RegisterUnsafe(key, provider, dependencies)
+	c.graph.AddNodeUnsafe(key, dependencies)
 
-	c.graph.AddNode(key, dependencies)
-
-	if c.graph.HasCycle() {
-		c.registry.Remove(key)
-		c.graph.RemoveNode(key)
-		cyclePath := c.graph.FindCyclePath(key)
+	if len(dependencies) > 0 && c.graph.HasCycleUnsafe() {
+		c.registry.RemoveUnsafe(key)
+		c.graph.RemoveNodeUnsafe(key)
+		cyclePath := c.graph.FindCyclePathUnsafe(key)
 		return fmt.Errorf("circular dependency detected: %v", cyclePath)
 	}
 
@@ -29,13 +26,10 @@ func (c *Container) ReplaceValue(key string, value any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.registry.Remove(key)
-	c.graph.RemoveNode(key)
+	c.registry.RemoveUnsafe(key)
+	c.graph.RemoveNodeUnsafe(key)
 
-	if err := c.registry.RegisterValue(key, value); err != nil {
-		return err
-	}
-
-	c.graph.AddNode(key, nil)
+	c.registry.RegisterValueUnsafe(key, value)
+	c.graph.AddNodeUnsafe(key, nil)
 	return nil
 }

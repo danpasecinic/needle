@@ -14,6 +14,10 @@ func (g *Graph) DetectCycles() [][]string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
+	return g.detectCyclesUnsafe()
+}
+
+func (g *Graph) detectCyclesUnsafe() [][]string {
 	detector := &CycleDetector{
 		graph:   g,
 		index:   0,
@@ -105,6 +109,15 @@ func (g *Graph) HasCycle() bool {
 	return g.hasCycle
 }
 
+func (g *Graph) HasCycleUnsafe() bool {
+	if g.cycleValid {
+		return g.hasCycle
+	}
+	g.hasCycle = g.hasCycleUnsafe()
+	g.cycleValid = true
+	return g.hasCycle
+}
+
 func (g *Graph) hasCycleUnsafe() bool {
 	white := make(map[string]bool, len(g.nodes))
 	gray := make(map[string]bool, len(g.nodes))
@@ -113,7 +126,6 @@ func (g *Graph) hasCycleUnsafe() bool {
 		white[id] = true
 	}
 
-	var hasCycle bool
 	var dfs func(id string) bool
 	dfs = func(id string) bool {
 		white[id] = false
@@ -138,19 +150,26 @@ func (g *Graph) hasCycleUnsafe() bool {
 	for id := range g.nodes {
 		if white[id] {
 			if dfs(id) {
-				hasCycle = true
-				break
+				return true
 			}
 		}
 	}
 
-	return hasCycle
+	return false
 }
 
 func (g *Graph) FindCyclePath(start string) []string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
+	return g.findCyclePathUnsafe(start)
+}
+
+func (g *Graph) FindCyclePathUnsafe(start string) []string {
+	return g.findCyclePathUnsafe(start)
+}
+
+func (g *Graph) findCyclePathUnsafe(start string) []string {
 	visited := make(map[string]bool)
 	path := make([]string, 0)
 	inPath := make(map[string]bool)
@@ -201,7 +220,7 @@ func (g *Graph) GetAllCyclePaths() [][]string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	cycles := g.DetectCycles()
+	cycles := g.detectCyclesUnsafe()
 	if len(cycles) == 0 {
 		return nil
 	}
@@ -209,7 +228,7 @@ func (g *Graph) GetAllCyclePaths() [][]string {
 	var allPaths [][]string
 	for _, scc := range cycles {
 		if len(scc) > 0 {
-			path := g.FindCyclePath(scc[0])
+			path := g.findCyclePathUnsafe(scc[0])
 			if path != nil {
 				allPaths = append(allPaths, path)
 			}

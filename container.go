@@ -42,20 +42,16 @@ func newContainer(opts ...Option) *Container {
 	}
 
 	for _, h := range cfg.onResolve {
-		hook := h
-		internalCfg.OnResolve = append(internalCfg.OnResolve, container.ResolveHook(hook))
+		internalCfg.OnResolve = append(internalCfg.OnResolve, container.ResolveHook(h))
 	}
 	for _, h := range cfg.onProvide {
-		hook := h
-		internalCfg.OnProvide = append(internalCfg.OnProvide, container.ProvideHook(hook))
+		internalCfg.OnProvide = append(internalCfg.OnProvide, container.ProvideHook(h))
 	}
 	for _, h := range cfg.onStart {
-		hook := h
-		internalCfg.OnStart = append(internalCfg.OnStart, container.StartHook(hook))
+		internalCfg.OnStart = append(internalCfg.OnStart, container.StartHook(h))
 	}
 	for _, h := range cfg.onStop {
-		hook := h
-		internalCfg.OnStop = append(internalCfg.OnStop, container.StopHook(hook))
+		internalCfg.OnStop = append(internalCfg.OnStop, container.StopHook(h))
 	}
 
 	c := &Container{

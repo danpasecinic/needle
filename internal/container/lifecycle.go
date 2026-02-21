@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -110,13 +111,9 @@ func (c *Container) startService(ctx context.Context, key string) error {
 		return fmt.Errorf("failed to resolve %s during startup: %w", key, err)
 	}
 
-	entry, exists := c.registry.GetEntry(key)
-	if !exists {
-		return nil
-	}
-
 	var startErr error
-	for _, hook := range entry.OnStart {
+	hooks := c.registry.GetOnStartHooks(key)
+	for _, hook := range hooks {
 		c.logger.Debug("running OnStart hook", "service", key)
 		if err := hook(ctx); err != nil {
 			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
@@ -240,15 +237,17 @@ func (c *Container) stopService(ctx context.Context, key string) error {
 	}
 
 	start := time.Now()
-	var stopErr error
+	var errs []error
 
-	for i := len(entry.OnStop) - 1; i >= 0; i-- {
+	hooks := c.registry.GetOnStopHooks(key)
+	for i := len(hooks) - 1; i >= 0; i-- {
 		c.logger.Debug("running OnStop hook", "service", key)
-		if err := entry.OnStop[i](ctx); err != nil {
-			stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
+		if err := hooks[i](ctx); err != nil {
+			errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
 		}
 	}
 
+	stopErr := errors.Join(errs...)
 	c.callStopHooks(key, time.Since(start), stopErr)
 	return stopErr
 }

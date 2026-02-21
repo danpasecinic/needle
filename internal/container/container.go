@@ -30,9 +30,6 @@ type Container struct {
 	logger   *slog.Logger
 	state    State
 
-	resolving   map[string]bool
-	resolvingMu sync.Mutex
-
 	decorators   map[string][]DecoratorFunc
 	decoratorsMu sync.RWMutex
 
@@ -68,7 +65,6 @@ func New(cfg *Config) *Container {
 		registry:   NewRegistry(),
 		graph:      graph.New(),
 		logger:     logger,
-		resolving:  make(map[string]bool),
 		decorators: make(map[string][]DecoratorFunc),
 		onResolve:  cfg.OnResolve,
 		onProvide:  cfg.OnProvide,
@@ -89,7 +85,7 @@ func (c *Container) Register(key string, provider ProviderFunc, dependencies []s
 	c.registry.RegisterUnsafe(key, provider, dependencies)
 	c.graph.AddNodeUnsafe(key, dependencies)
 
-	if len(dependencies) > 0 && c.graph.HasCycle() {
+	if len(dependencies) > 0 && c.graph.HasCycleUnsafe() {
 		c.registry.RemoveUnsafe(key)
 		c.graph.RemoveNodeUnsafe(key)
 		c.mu.Unlock()
