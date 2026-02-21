@@ -84,11 +84,10 @@ func (c *Container) resolveWithScope(ctx context.Context, key string, entry *Ser
 }
 
 func (c *Container) resolveSingleton(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	if entry.Instantiated {
+	if entry.Provider == nil {
 		return entry.Instance, nil
 	}
 
-	var instance any
 	entry.once.Do(func() {
 		for _, dep := range entry.Dependencies {
 			if _, err := c.Resolve(ctx, dep); err != nil {
@@ -116,15 +115,13 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 		return nil, entry.initErr
 	}
 
-	instance = entry.Instance
-
 	if entry.Lazy && !entry.StartRan && c.state == StateRunning {
 		if err := c.runLazyStart(ctx, key, entry); err != nil {
 			return nil, err
 		}
 	}
 
-	return instance, nil
+	return entry.Instance, nil
 }
 
 func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {

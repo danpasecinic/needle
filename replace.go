@@ -20,8 +20,8 @@ func Replace[T any](c *Container, provider Provider[T], opts ...ProviderOption) 
 		key = reflect.TypeKeyNamed[T](cfg.name)
 	}
 
+	resolver := c.resolver
 	wrappedProvider := func(ctx context.Context, r container.Resolver) (any, error) {
-		resolver := &resolverAdapter{container: c}
 		return provider(ctx, resolver)
 	}
 
