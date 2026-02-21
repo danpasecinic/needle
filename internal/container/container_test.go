@@ -3,6 +3,8 @@ package container
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -294,6 +296,66 @@ func TestContainer_ContextCancellation(t *testing.T) {
 	_, err := c.Resolve(ctx, "slow")
 	if err == nil {
 		t.Log("provider completed before cancellation (acceptable)")
+	}
+}
+
+func TestContainer_ConcurrentResolve_NoFalseCycle(t *testing.T) {
+	t.Parallel()
+
+	c := New(&Config{})
+
+	_ = c.RegisterValue("dep", "dependency")
+	_ = c.Register("svc", func(ctx context.Context, r Resolver) (any, error) {
+		_, _ = r.Resolve(ctx, "dep")
+		return "service", nil
+	}, []string{"dep"})
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 50)
+
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := c.Resolve(context.Background(), "svc")
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("unexpected error during concurrent resolve: %v", err)
+	}
+}
+
+func TestContainer_SingletonCalledOnce(t *testing.T) {
+	t.Parallel()
+
+	c := New(&Config{})
+
+	var callCount atomic.Int64
+	_ = c.Register("singleton", func(ctx context.Context, r Resolver) (any, error) {
+		callCount.Add(1)
+		return "instance", nil
+	}, nil)
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = c.Resolve(context.Background(), "singleton")
+		}()
+	}
+
+	wg.Wait()
+
+	if count := callCount.Load(); count != 1 {
+		t.Errorf("singleton provider called %d times, expected 1", count)
 	}
 }
 

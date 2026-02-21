@@ -29,6 +29,8 @@ type ServiceEntry struct {
 	pool         chan any
 	Lazy         bool
 	StartRan     bool
+	once         sync.Once
+	initErr      error
 }
 
 type Registry struct {
@@ -308,6 +310,34 @@ func (r *Registry) IsLazy(key string) bool {
 		return entry.Lazy
 	}
 	return false
+}
+
+func (r *Registry) GetOnStartHooks(key string) []Hook {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	entry, exists := r.services[key]
+	if !exists {
+		return nil
+	}
+
+	hooks := make([]Hook, len(entry.OnStart))
+	copy(hooks, entry.OnStart)
+	return hooks
+}
+
+func (r *Registry) GetOnStopHooks(key string) []Hook {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	entry, exists := r.services[key]
+	if !exists {
+		return nil
+	}
+
+	hooks := make([]Hook, len(entry.OnStop))
+	copy(hooks, entry.OnStop)
+	return hooks
 }
 
 func (r *Registry) SetStartRan(key string) {
