@@ -64,16 +64,21 @@
 //
 // Use Optional for dependencies that may or may not be registered:
 //
-//	opt := needle.InvokeOptional[*Cache](c)
+//	opt, err := needle.InvokeOptional[*Cache](c)
+//	if err != nil {
+//	    // registered but resolution failed
+//	}
 //	if opt.Present() {
 //	    cache := opt.Value()
 //	}
 //
 //	// Or use OrElse for default values
-//	cache := needle.InvokeOptional[*Cache](c).OrElse(defaultCache)
+//	opt, _ := needle.InvokeOptional[*Cache](c)
+//	cache := opt.OrElse(defaultCache)
 //
 //	// OrElseFunc for lazy defaults
-//	cache := needle.InvokeOptional[*Cache](c).OrElseFunc(func() *Cache {
+//	opt, _ := needle.InvokeOptional[*Cache](c)
+//	cache := opt.OrElseFunc(func() *Cache {
 //	    return NewDefaultCache()
 //	})
 //

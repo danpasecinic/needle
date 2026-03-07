@@ -2,6 +2,7 @@ package needle
 
 import (
 	"context"
+	"strings"
 
 	"github.com/danpasecinic/needle/internal/reflect"
 )
@@ -156,50 +157,39 @@ func None[T any]() Optional[T] {
 	return Optional[T]{}
 }
 
-func InvokeOptional[T any](c *Container) Optional[T] {
+func InvokeOptional[T any](c *Container) (Optional[T], error) {
 	return InvokeOptionalCtx[T](context.Background(), c)
 }
 
-func InvokeOptionalCtx[T any](ctx context.Context, c *Container) Optional[T] {
-	key := reflect.TypeKey[T]()
-
-	if !c.internal.Has(key) {
-		return None[T]()
-	}
-
-	instance, err := c.internal.Resolve(ctx, key)
-	if err != nil {
-		return None[T]()
-	}
-
-	typed, ok := instance.(T)
-	if !ok {
-		return None[T]()
-	}
-
-	return Some(typed)
+func InvokeOptionalCtx[T any](ctx context.Context, c *Container) (Optional[T], error) {
+	return resolveOptional[T](ctx, c, reflect.TypeKey[T](), reflect.TypeName[T]())
 }
 
-func InvokeOptionalNamed[T any](c *Container, name string) Optional[T] {
+func InvokeOptionalNamed[T any](c *Container, name string) (Optional[T], error) {
 	return InvokeOptionalNamedCtx[T](context.Background(), c, name)
 }
 
-func InvokeOptionalNamedCtx[T any](ctx context.Context, c *Container, name string) Optional[T] {
-	key := reflect.TypeKeyNamed[T](name)
+func InvokeOptionalNamedCtx[T any](ctx context.Context, c *Container, name string) (Optional[T], error) {
+	return resolveOptional[T](ctx, c, reflect.TypeKeyNamed[T](name), reflect.TypeName[T]()+"#"+name)
+}
 
-	if !c.internal.Has(key) {
-		return None[T]()
-	}
-
+func resolveOptional[T any](ctx context.Context, c *Container, key, displayName string) (Optional[T], error) {
 	instance, err := c.internal.Resolve(ctx, key)
 	if err != nil {
-		return None[T]()
+		if isServiceNotFound(err) {
+			return None[T](), nil
+		}
+		return None[T](), errResolutionFailed(displayName, err)
 	}
 
 	typed, ok := instance.(T)
 	if !ok {
-		return None[T]()
+		return None[T](), errResolutionFailed(displayName, nil)
 	}
 
-	return Some(typed)
+	return Some(typed), nil
+}
+
+func isServiceNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "service not found:")
 }
