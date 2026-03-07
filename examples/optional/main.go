@@ -82,6 +82,13 @@ func (s *UserService) GetUser(id int) string {
 	return user
 }
 
+func mustOptional[T any](opt needle.Optional[T], err error) needle.Optional[T] {
+	if err != nil {
+		panic(err)
+	}
+	return opt
+}
+
 func main() {
 	fmt.Println("=== Scenario 1: All dependencies available ===")
 	runWithAllDeps()
@@ -112,12 +119,12 @@ func runWithAllDeps() {
 
 	_ = needle.Provide(
 		c, func(_ context.Context, _ needle.Resolver) (*UserService, error) {
-			cache := needle.InvokeOptional[Cache](c).OrElseFunc(
+			cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 				func() Cache {
 					return NewInMemoryCache()
 				},
 			)
-			metrics := needle.InvokeOptional[Metrics](c).OrElse(&NoOpMetrics{})
+			metrics := mustOptional(needle.InvokeOptional[Metrics](c)).OrElse(&NoOpMetrics{})
 			return &UserService{cache: cache, metrics: metrics}, nil
 		},
 	)
@@ -132,12 +139,12 @@ func runWithoutOptionalDeps() {
 
 	_ = needle.Provide(
 		c, func(_ context.Context, _ needle.Resolver) (*UserService, error) {
-			cache := needle.InvokeOptional[Cache](c).OrElseFunc(
+			cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 				func() Cache {
 					return NewInMemoryCache()
 				},
 			)
-			metrics := needle.InvokeOptional[Metrics](c).OrElse(&NoOpMetrics{})
+			metrics := mustOptional(needle.InvokeOptional[Metrics](c)).OrElse(&NoOpMetrics{})
 			return &UserService{cache: cache, metrics: metrics}, nil
 		},
 	)
@@ -154,7 +161,7 @@ func demonstrateOptionalAPI() {
 	_ = needle.Bind[Cache, *RedisCache](c)
 
 	fmt.Println("--- Present() and Value() ---")
-	opt := needle.InvokeOptional[Cache](c)
+	opt := mustOptional(needle.InvokeOptional[Cache](c))
 	if opt.Present() {
 		cache := opt.Value()
 		cache.Set("foo", "bar")
@@ -168,11 +175,11 @@ func demonstrateOptionalAPI() {
 	}
 
 	fmt.Println("\n--- OrElse() ---")
-	cache := needle.InvokeOptional[Cache](c).OrElse(NewInMemoryCache())
+	cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElse(NewInMemoryCache())
 	fmt.Printf("Cache type: %T\n", cache)
 
 	fmt.Println("\n--- OrElseFunc() (lazy) ---")
-	cache = needle.InvokeOptional[Cache](c).OrElseFunc(
+	cache = mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 		func() Cache {
 			fmt.Println("This won't print because cache exists")
 			return NewInMemoryCache()
@@ -181,12 +188,12 @@ func demonstrateOptionalAPI() {
 	fmt.Printf("Cache type: %T\n", cache)
 
 	fmt.Println("\n--- Missing dependency ---")
-	optMetrics := needle.InvokeOptional[Metrics](c)
+	optMetrics := mustOptional(needle.InvokeOptional[Metrics](c))
 	fmt.Printf("Metrics present: %v\n", optMetrics.Present())
 	metrics := optMetrics.OrElse(&NoOpMetrics{})
 	fmt.Printf("Metrics type: %T\n", metrics)
 
 	fmt.Println("\n--- Named optional ---")
-	optNamed := needle.InvokeOptionalNamed[Cache](c, "session")
+	optNamed := mustOptional(needle.InvokeOptionalNamed[Cache](c, "session"))
 	fmt.Printf("Named cache present: %v\n", optNamed.Present())
 }
