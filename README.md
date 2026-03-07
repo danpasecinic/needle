@@ -47,6 +47,52 @@ See the [examples](examples/) directory:
 - [optional](examples/optional/) - Optional dependencies with fallbacks
 - [parallel](examples/parallel/) - Parallel startup/shutdown
 
+## Choosing a Scope
+
+| Scope | Lifetime | Use When |
+|-------|----------|----------|
+| **Singleton** (default) | One instance for the container lifetime | Stateful services: DB pools, config, caches, loggers |
+| **Transient** | New instance every resolution | Stateless handlers, commands, lightweight value objects |
+| **Request** | One instance per `WithRequestScope(ctx)` | Per-HTTP-request state: request loggers, auth context, transaction managers |
+| **Pooled** | Reusable instances from a fixed-size pool | Expensive-to-create, stateless-between-uses resources: gRPC connections, worker objects |
+
+```go
+needle.Provide(c, NewService)                              // Singleton (default)
+needle.Provide(c, NewHandler, needle.WithScope(needle.Transient))
+needle.Provide(c, NewRequestLogger, needle.WithScope(needle.Request))
+needle.Provide(c, NewWorker, needle.WithPoolSize(10))      // Pooled with 10 slots
+```
+
+Pooled services must be released by the caller via `c.Release(key, instance)`. If the pool is full, the instance is dropped and a warning is logged.
+
+## Replacing Services
+
+Replace services at runtime without restarting the container. Useful for feature flags, A/B testing, test doubles, or configuration updates.
+
+```go
+// Replace with a new value
+needle.ReplaceValue(c, &Config{Port: 9090})
+
+// Replace with a new provider
+needle.Replace(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
+    return &Server{Config: needle.MustInvoke[*Config](c)}, nil
+})
+
+// Replace with auto-wired constructor
+needle.ReplaceFunc[*Service](c, NewService)
+
+// Replace with struct injection
+needle.ReplaceStruct[*Service](c)
+
+// Named variants
+needle.ReplaceNamedValue(c, "primary", &Config{Port: 5432})
+needle.ReplaceNamed(c, "primary", provider)
+```
+
+All Replace functions accept the same options as Provide (`WithScope`, `WithOnStart`, `WithOnStop`, `WithLazy`, `WithPoolSize`). If the service does not exist yet, Replace creates it. If it does exist, the old entry is removed from both the registry and the dependency graph before re-registering.
+
+`Must` variants (`MustReplace`, `MustReplaceValue`, `MustReplaceFunc`, `MustReplaceStruct`) panic on error.
+
 ## Benchmarks
 
 Needle wins benchmark categories against uber/fx, samber/do, and uber/dig.
