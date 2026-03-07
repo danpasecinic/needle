@@ -113,6 +113,7 @@ func (r *Registry) GetInstance(key string) (any, bool) {
 	return entry.Instance, true
 }
 
+// GetInstanceFast avoids defer for performance -- this is a hot path called on every Resolve.
 func (r *Registry) GetInstanceFast(key string) (any, bool) {
 	r.mu.RLock()
 	entry, exists := r.services[key]
