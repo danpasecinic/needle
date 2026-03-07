@@ -109,15 +109,6 @@ func (g *Graph) HasCycle() bool {
 	return g.hasCycle
 }
 
-func (g *Graph) HasCycleUnsafe() bool {
-	if g.cycleValid {
-		return g.hasCycle
-	}
-	g.hasCycle = g.hasCycleUnsafe()
-	g.cycleValid = true
-	return g.hasCycle
-}
-
 func (g *Graph) hasCycleUnsafe() bool {
 	white := make(map[string]bool, len(g.nodes))
 	gray := make(map[string]bool, len(g.nodes))
@@ -162,10 +153,6 @@ func (g *Graph) FindCyclePath(start string) []string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return g.findCyclePathUnsafe(start)
-}
-
-func (g *Graph) FindCyclePathUnsafe(start string) []string {
 	return g.findCyclePathUnsafe(start)
 }
 

@@ -101,21 +101,21 @@ Needle wins benchmark categories against uber/fx, samber/do, and uber/dig.
 
 | Framework  | Simple | Chain | Memory (Chain) |
 |------------|--------|-------|----------------|
-| **Needle** | 780ns  | 1.6μs | 3KB            |
-| Do         | 1.9μs  | 5.0μs | 4KB            |
-| Dig        | 13μs   | 28μs  | 28KB           |
-| Fx         | 42μs   | 85μs  | 70KB           |
+| **Needle** | 698ns  | 1.5μs | 3KB            |
+| Do         | 1.8μs  | 4.4μs | 4KB            |
+| Dig        | 13μs   | 26μs  | 28KB           |
+| Fx         | 39μs   | 78μs  | 70KB           |
 
-Needle is **50x faster** than Fx for provider registration.
+Needle is **56x faster** than Fx for provider registration.
 
 ### Service Resolution
 
 | Framework  | Singleton | Chain |
 |------------|-----------|-------|
 | Fx         | 0ns*      | 0ns*  |
-| **Needle** | 17ns      | 16ns  |
-| Do         | 152ns     | 159ns |
-| Dig        | 591ns     | 586ns |
+| **Needle** | 15ns      | 17ns  |
+| Do         | 150ns     | 161ns |
+| Dig        | 614ns     | 622ns |
 
 *Fx resolves at startup, not on-demand.
 
@@ -125,8 +125,8 @@ When services have initialization work (database connections, HTTP clients, etc.
 
 | Scenario          | Sequential | Parallel | Speedup |
 |-------------------|------------|----------|---------|
-| 10 services × 1ms | 23ms       | 2.4ms    | **10x** |
-| 50 services × 1ms | 116ms      | 2.5ms    | **45x** |
+| 10 services × 1ms | 23ms       | 2.3ms    | **10x** |
+| 50 services × 1ms | 113ms      | 2.6ms    | **44x** |
 
 Run benchmarks: `cd benchmark && make run`
 
