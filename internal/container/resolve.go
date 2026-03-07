@@ -22,21 +22,11 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 	start := time.Now()
 
-	c.resolvingMu.Lock()
-	if c.resolving[key] {
-		c.resolvingMu.Unlock()
-		err := fmt.Errorf("circular resolution detected for: %s", key)
+	if err := c.markResolving(key); err != nil {
 		c.callResolveHooks(key, time.Since(start), err)
 		return nil, err
 	}
-	c.resolving[key] = true
-	c.resolvingMu.Unlock()
-
-	defer func() {
-		c.resolvingMu.Lock()
-		delete(c.resolving, key)
-		c.resolvingMu.Unlock()
-	}()
+	defer c.unmarkResolving(key)
 
 	c.mu.RLock()
 	entry, exists := c.registry.Get(key)
@@ -51,6 +41,22 @@ func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 	result, err := c.resolveWithScope(ctx, key, entry)
 	c.callResolveHooks(key, time.Since(start), err)
 	return result, err
+}
+
+func (c *Container) markResolving(key string) error {
+	c.resolvingMu.Lock()
+	defer c.resolvingMu.Unlock()
+	if c.resolving[key] {
+		return fmt.Errorf("circular resolution detected for: %s", key)
+	}
+	c.resolving[key] = true
+	return nil
+}
+
+func (c *Container) unmarkResolving(key string) {
+	c.resolvingMu.Lock()
+	defer c.resolvingMu.Unlock()
+	delete(c.resolving, key)
 }
 
 func (c *Container) callResolveHooks(key string, duration time.Duration, err error) {
