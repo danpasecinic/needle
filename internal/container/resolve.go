@@ -45,7 +45,7 @@ func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 		err := fmt.Errorf("circular resolution detected for: %s", key)
 		c.callResolveHooks(key, time.Since(start), err)
 		return nil, err
-	} dd399ff (refactor: extract lock helpers in container internals)
+	}
 
 	c.mu.RLock()
 	entry, exists := c.registry.Get(key)
