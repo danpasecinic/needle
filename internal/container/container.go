@@ -194,7 +194,11 @@ func (c *Container) State() State {
 }
 
 func (c *Container) Release(key string, instance any) bool {
-	return c.registry.ReleaseToPool(key, instance)
+	released := c.registry.ReleaseToPool(key, instance)
+	if !released {
+		c.logger.Warn("pool overflow: instance dropped", "service", key)
+	}
+	return released
 }
 
 func (c *Container) AddOnStart(key string, hook Hook) {
