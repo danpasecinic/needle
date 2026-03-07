@@ -9,6 +9,24 @@ import (
 	"github.com/danpasecinic/needle/internal/scope"
 )
 
+type resolvingKey struct{}
+
+func withResolving(ctx context.Context, key string) (context.Context, bool) {
+	set, _ := ctx.Value(resolvingKey{}).(map[string]bool)
+	if set != nil && set[key] {
+		return ctx, false
+	}
+	if set == nil {
+		set = make(map[string]bool)
+	}
+	next := make(map[string]bool, len(set)+1)
+	for k := range set {
+		next[k] = true
+	}
+	next[key] = true
+	return context.WithValue(ctx, resolvingKey{}, next), true
+}
+
 func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 	if len(c.onResolve) == 0 {
 		if instance, ok := c.registry.GetInstanceFast(key); ok {
@@ -22,21 +40,12 @@ func (c *Container) Resolve(ctx context.Context, key string) (any, error) {
 func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 	start := time.Now()
 
-	c.resolvingMu.Lock()
-	if c.resolving[key] {
-		c.resolvingMu.Unlock()
+	ctx, ok := withResolving(ctx, key)
+	if !ok {
 		err := fmt.Errorf("circular resolution detected for: %s", key)
 		c.callResolveHooks(key, time.Since(start), err)
 		return nil, err
 	}
-	c.resolving[key] = true
-	c.resolvingMu.Unlock()
-
-	defer func() {
-		c.resolvingMu.Lock()
-		delete(c.resolving, key)
-		c.resolvingMu.Unlock()
-	}()
 
 	c.mu.RLock()
 	entry, exists := c.registry.Get(key)
@@ -75,27 +84,36 @@ func (c *Container) resolveWithScope(ctx context.Context, key string, entry *Ser
 }
 
 func (c *Container) resolveSingleton(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	if entry.Instantiated {
+	if entry.Provider == nil {
 		return entry.Instance, nil
 	}
 
-	for _, dep := range entry.Dependencies {
-		if _, err := c.Resolve(ctx, dep); err != nil {
-			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
+	entry.once.Do(func() {
+		for _, dep := range entry.Dependencies {
+			if _, err := c.Resolve(ctx, dep); err != nil {
+				entry.initErr = fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
+				return
+			}
 		}
-	}
 
-	instance, err := entry.Provider(ctx, c)
-	if err != nil {
-		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
-	}
+		inst, err := entry.Provider(ctx, c)
+		if err != nil {
+			entry.initErr = fmt.Errorf("provider failed for %s: %w", key, err)
+			return
+		}
 
-	instance, err = c.applyDecorators(ctx, key, instance)
-	if err != nil {
-		return nil, err
-	}
+		inst, err = c.applyDecorators(ctx, key, inst)
+		if err != nil {
+			entry.initErr = err
+			return
+		}
 
-	c.registry.SetInstance(key, instance)
+		c.registry.SetInstance(key, inst)
+	})
+
+	if entry.initErr != nil {
+		return nil, entry.initErr
+	}
 
 	if entry.Lazy && !entry.StartRan && c.state == StateRunning {
 		if err := c.runLazyStart(ctx, key, entry); err != nil {
@@ -103,14 +121,15 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 		}
 	}
 
-	return instance, nil
+	return entry.Instance, nil
 }
 
-func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {
+func (c *Container) runLazyStart(ctx context.Context, key string, _ *ServiceEntry) error {
 	start := time.Now()
 	var startErr error
 
-	for _, hook := range entry.OnStart {
+	hooks := c.registry.GetOnStartHooks(key)
+	for _, hook := range hooks {
 		c.logger.Debug("running lazy OnStart hook", "service", key)
 		if err := hook(ctx); err != nil {
 			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)

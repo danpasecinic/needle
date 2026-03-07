@@ -30,9 +30,6 @@ type Container struct {
 	logger   *slog.Logger
 	state    State
 
-	resolving   map[string]bool
-	resolvingMu sync.Mutex
-
 	decorators   map[string][]DecoratorFunc
 	decoratorsMu sync.RWMutex
 
@@ -68,7 +65,6 @@ func New(cfg *Config) *Container {
 		registry:   NewRegistry(),
 		graph:      graph.New(),
 		logger:     logger,
-		resolving:  make(map[string]bool),
 		decorators: make(map[string][]DecoratorFunc),
 		onResolve:  cfg.OnResolve,
 		onProvide:  cfg.OnProvide,
@@ -79,24 +75,9 @@ func New(cfg *Config) *Container {
 }
 
 func (c *Container) Register(key string, provider ProviderFunc, dependencies []string) error {
-	c.mu.Lock()
-
-	if c.registry.HasUnsafe(key) {
-		c.mu.Unlock()
-		return fmt.Errorf("service already registered: %s", key)
+	if err := c.registerLocked(key, provider, dependencies); err != nil {
+		return err
 	}
-
-	c.registry.RegisterUnsafe(key, provider, dependencies)
-	c.graph.AddNodeUnsafe(key, dependencies)
-
-	if len(dependencies) > 0 && c.graph.HasCycle() {
-		c.registry.RemoveUnsafe(key)
-		c.graph.RemoveNodeUnsafe(key)
-		c.mu.Unlock()
-		return fmt.Errorf("circular dependency detected for: %s", key)
-	}
-
-	c.mu.Unlock()
 
 	for _, hook := range c.onProvide {
 		hook(key)
@@ -105,23 +86,48 @@ func (c *Container) Register(key string, provider ProviderFunc, dependencies []s
 	return nil
 }
 
-func (c *Container) RegisterValue(key string, value any) error {
+func (c *Container) registerLocked(key string, provider ProviderFunc, dependencies []string) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if c.registry.HasUnsafe(key) {
-		c.mu.Unlock()
+	if c.registry.Has(key) {
 		return fmt.Errorf("service already registered: %s", key)
 	}
 
-	c.registry.RegisterValueUnsafe(key, value)
-	c.graph.AddNodeUnsafe(key, nil)
+	_ = c.registry.Register(key, provider, dependencies)
+	c.graph.AddNode(key, dependencies)
 
-	c.mu.Unlock()
+	if len(dependencies) > 0 && c.graph.HasCycle() {
+		c.registry.Remove(key)
+		c.graph.RemoveNode(key)
+		return fmt.Errorf("circular dependency detected for: %s", key)
+	}
+
+	return nil
+}
+
+func (c *Container) RegisterValue(key string, value any) error {
+	if err := c.registerValueLocked(key, value); err != nil {
+		return err
+	}
 
 	for _, hook := range c.onProvide {
 		hook(key)
 	}
 
+	return nil
+}
+
+func (c *Container) registerValueLocked(key string, value any) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.registry.Has(key) {
+		return fmt.Errorf("service already registered: %s", key)
+	}
+
+	_ = c.registry.RegisterValue(key, value)
+	c.graph.AddNode(key, nil)
 	return nil
 }
 
@@ -184,7 +190,11 @@ func (c *Container) State() State {
 }
 
 func (c *Container) Release(key string, instance any) bool {
-	return c.registry.ReleaseToPool(key, instance)
+	released := c.registry.ReleaseToPool(key, instance)
+	if !released {
+		c.logger.Warn("pool overflow: instance dropped", "service", key)
+	}
+	return released
 }
 
 func (c *Container) AddOnStart(key string, hook Hook) {

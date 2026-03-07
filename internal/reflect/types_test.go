@@ -73,6 +73,25 @@ func TestTypeKey(t *testing.T) {
 	}
 }
 
+func TestTypeKeyArray(t *testing.T) {
+	t.Parallel()
+
+	key := TypeKey[[3]int]()
+	if key != "[3]int" {
+		t.Errorf("expected [3]int, got %s", key)
+	}
+
+	key10 := TypeKey[[10]string]()
+	if key10 != "[10]string" {
+		t.Errorf("expected [10]string, got %s", key10)
+	}
+
+	key256 := TypeKey[[256]byte]()
+	if key256 != "[256]uint8" {
+		t.Errorf("expected [256]uint8, got %s", key256)
+	}
+}
+
 func TestTypeKeyUnique(t *testing.T) {
 	t.Parallel()
 
@@ -212,14 +231,14 @@ func TestImplements(t *testing.T) {
 
 func BenchmarkTypeKey(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = TypeKey[*testStruct]()
 	}
 }
 
 func BenchmarkTypeKeyNamed(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = TypeKeyNamed[*testStruct]("primary")
 	}
 }

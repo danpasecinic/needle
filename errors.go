@@ -65,10 +65,10 @@ type Error struct {
 
 func (e *Error) Error() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("[%s]", e.Code))
+	fmt.Fprintf(&b, "[%s]", e.Code)
 
 	if e.Service != "" {
-		b.WriteString(fmt.Sprintf(" service=%q:", e.Service))
+		fmt.Fprintf(&b, " service=%q:", e.Service)
 	}
 
 	b.WriteString(" ")
@@ -87,11 +87,11 @@ func (e *Error) Unwrap() error {
 }
 
 func (e *Error) Is(target error) bool {
-	var t *Error
-	if errors.As(target, &t) {
-		return e.Code == t.Code
+	t, ok := target.(*Error)
+	if !ok {
+		return false
 	}
-	return false
+	return e.Code == t.Code
 }
 
 func (e *Error) WithService(service string) *Error {
@@ -112,26 +112,10 @@ func newError(code ErrorCode, message string, cause error) *Error {
 	}
 }
 
-func errServiceNotFound(serviceType string) *Error { //nolint:unused // reserved for future use
+func errServiceNotFound(serviceType string) *Error {
 	return newError(
 		ErrCodeServiceNotFound,
 		fmt.Sprintf("no provider registered for type %s", serviceType),
-		nil,
-	).WithService(serviceType)
-}
-
-func errCircularDependency(chain []string) *Error { //nolint:unused // reserved for future use
-	return newError(
-		ErrCodeCircularDependency,
-		fmt.Sprintf("circular dependency detected: %s", strings.Join(chain, " -> ")),
-		nil,
-	).WithStack(chain)
-}
-
-func errDuplicateService(serviceType string) *Error { //nolint:unused // reserved for future use
-	return newError(
-		ErrCodeDuplicateService,
-		fmt.Sprintf("provider already registered for type %s", serviceType),
 		nil,
 	).WithService(serviceType)
 }
@@ -144,15 +128,7 @@ func errResolutionFailed(serviceType string, cause error) *Error {
 	).WithService(serviceType)
 }
 
-func errProviderFailed(serviceType string, cause error) *Error { //nolint:unused // reserved for future use
-	return newError(
-		ErrCodeProviderFailed,
-		fmt.Sprintf("provider for %s returned error", serviceType),
-		cause,
-	).WithService(serviceType)
-}
-
-func errStartupFailed(serviceType string, cause error) *Error { //nolint:unused // reserved for future use
+func errStartupFailed(serviceType string, cause error) *Error {
 	return newError(
 		ErrCodeStartupFailed,
 		fmt.Sprintf("failed to start %s", serviceType),
@@ -160,7 +136,7 @@ func errStartupFailed(serviceType string, cause error) *Error { //nolint:unused 
 	).WithService(serviceType)
 }
 
-func errShutdownFailed(serviceType string, cause error) *Error { //nolint:unused // reserved for future use
+func errShutdownFailed(serviceType string, cause error) *Error {
 	return newError(
 		ErrCodeShutdownFailed,
 		fmt.Sprintf("failed to stop %s", serviceType),

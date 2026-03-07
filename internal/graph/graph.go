@@ -32,10 +32,6 @@ func (g *Graph) AddNode(id string, dependencies []string) {
 	g.addNodeUnsafe(id, dependencies)
 }
 
-func (g *Graph) AddNodeUnsafe(id string, dependencies []string) {
-	g.addNodeUnsafe(id, dependencies)
-}
-
 func (g *Graph) addNodeUnsafe(id string, dependencies []string) {
 	g.nodes[id] = &Node{
 		ID:           id,
@@ -49,10 +45,6 @@ func (g *Graph) addNodeUnsafe(id string, dependencies []string) {
 func (g *Graph) RemoveNode(id string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.removeNodeUnsafe(id)
-}
-
-func (g *Graph) RemoveNodeUnsafe(id string) {
 	g.removeNodeUnsafe(id)
 }
 

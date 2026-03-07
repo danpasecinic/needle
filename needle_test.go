@@ -369,9 +369,8 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 	c := needle.New()
 	_ = needle.ProvideValue(c, &Config{Port: 8080})
 
-	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = needle.Invoke[*Config](c)
 	}
 }
@@ -380,9 +379,8 @@ func BenchmarkMustInvoke(b *testing.B) {
 	c := needle.New()
 	_ = needle.ProvideValue(c, &Config{Port: 8080})
 
-	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = needle.MustInvoke[*Config](c)
 	}
 }
@@ -393,7 +391,10 @@ func TestOptionalPresent(t *testing.T) {
 	c := needle.New()
 	_ = needle.ProvideValue(c, &Config{Port: 8080, Host: "localhost"})
 
-	opt := needle.InvokeOptional[*Config](c)
+	opt, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if !opt.Present() {
 		t.Error("expected optional to be present")
@@ -417,7 +418,10 @@ func TestOptionalNotPresent(t *testing.T) {
 
 	c := needle.New()
 
-	opt := needle.InvokeOptional[*Config](c)
+	opt, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if opt.Present() {
 		t.Error("expected optional to not be present")
@@ -437,7 +441,10 @@ func TestOptionalOrElse(t *testing.T) {
 
 	c := needle.New()
 
-	opt := needle.InvokeOptional[*Config](c)
+	opt, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	defaultCfg := &Config{Port: 3000}
 
 	result := opt.OrElse(defaultCfg)
@@ -446,7 +453,10 @@ func TestOptionalOrElse(t *testing.T) {
 	}
 
 	_ = needle.ProvideValue(c, &Config{Port: 8080})
-	opt2 := needle.InvokeOptional[*Config](c)
+	opt2, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result2 := opt2.OrElse(defaultCfg)
 	if result2.Port != 8080 {
@@ -460,7 +470,10 @@ func TestOptionalOrElseFunc(t *testing.T) {
 	c := needle.New()
 	callCount := 0
 
-	opt := needle.InvokeOptional[*Config](c)
+	opt, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	result := opt.OrElseFunc(func() *Config {
 		callCount++
 		return &Config{Port: 9000}
@@ -474,7 +487,10 @@ func TestOptionalOrElseFunc(t *testing.T) {
 	}
 
 	_ = needle.ProvideValue(c, &Config{Port: 8080})
-	opt2 := needle.InvokeOptional[*Config](c)
+	opt2, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	result2 := opt2.OrElseFunc(func() *Config {
 		callCount++
 		return &Config{Port: 9000}
@@ -494,7 +510,10 @@ func TestOptionalNamed(t *testing.T) {
 	c := needle.New()
 	_ = needle.ProvideNamedValue(c, "primary", &Config{Port: 5432})
 
-	opt := needle.InvokeOptionalNamed[*Config](c, "primary")
+	opt, err := needle.InvokeOptionalNamed[*Config](c, "primary")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !opt.Present() {
 		t.Error("expected primary config to be present")
 	}
@@ -502,7 +521,10 @@ func TestOptionalNamed(t *testing.T) {
 		t.Errorf("expected port 5432, got %d", opt.Value().Port)
 	}
 
-	optMissing := needle.InvokeOptionalNamed[*Config](c, "replica")
+	optMissing, err := needle.InvokeOptionalNamed[*Config](c, "replica")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if optMissing.Present() {
 		t.Error("expected replica config to not be present")
 	}
@@ -522,7 +544,10 @@ func TestOptionalInProvider(t *testing.T) {
 	}
 
 	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
-		cacheOpt := needle.InvokeOptional[*Cache](c)
+		cacheOpt, err := needle.InvokeOptional[*Cache](c)
+		if err != nil {
+			return nil, err
+		}
 		return &Service{
 			Cache: cacheOpt.OrElse(nil),
 		}, nil
@@ -549,7 +574,10 @@ func TestOptionalInProviderWithValue(t *testing.T) {
 
 	_ = needle.ProvideValue(c, &Cache{Enabled: true})
 	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
-		cacheOpt := needle.InvokeOptional[*Cache](c)
+		cacheOpt, err := needle.InvokeOptional[*Cache](c)
+		if err != nil {
+			return nil, err
+		}
 		return &Service{
 			Cache: cacheOpt.OrElse(nil),
 		}, nil
@@ -561,6 +589,41 @@ func TestOptionalInProviderWithValue(t *testing.T) {
 	}
 	if !svc.Cache.Enabled {
 		t.Error("expected cache to be enabled")
+	}
+}
+
+func TestOptionalResolutionError(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+
+	_ = needle.Provide(c, func(_ context.Context, _ needle.Resolver) (*Config, error) {
+		return nil, errors.New("provider broken")
+	})
+
+	opt, err := needle.InvokeOptional[*Config](c)
+	if err == nil {
+		t.Fatal("expected error for broken provider")
+	}
+	if opt.Present() {
+		t.Error("expected optional to not be present on error")
+	}
+	if !needle.IsResolutionFailed(err) {
+		t.Errorf("expected resolution failed error, got: %v", err)
+	}
+}
+
+func TestOptionalNotRegisteredNoError(t *testing.T) {
+	t.Parallel()
+
+	c := needle.New()
+
+	opt, err := needle.InvokeOptional[*Config](c)
+	if err != nil {
+		t.Fatalf("expected no error for unregistered service, got: %v", err)
+	}
+	if opt.Present() {
+		t.Error("expected optional to not be present")
 	}
 }
 

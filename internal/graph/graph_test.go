@@ -337,6 +337,62 @@ func TestGraph_ParallelStartupGroups(t *testing.T) {
 	}
 }
 
+func TestGraph_GetAllCyclePaths(t *testing.T) {
+	t.Parallel()
+
+	g := New()
+	g.AddNode("A", []string{"B"})
+	g.AddNode("B", []string{"C"})
+	g.AddNode("C", []string{"A"})
+
+	paths := g.GetAllCyclePaths()
+	if len(paths) == 0 {
+		t.Fatal("expected at least one cycle path")
+	}
+
+	path := paths[0]
+	if path[0] != path[len(path)-1] {
+		t.Error("cycle path should start and end with same node")
+	}
+}
+
+func TestGraph_GetAllCyclePaths_NoCycle(t *testing.T) {
+	t.Parallel()
+
+	g := New()
+	g.AddNode("A", []string{"B"})
+	g.AddNode("B", nil)
+
+	paths := g.GetAllCyclePaths()
+	if paths != nil {
+		t.Errorf("expected nil, got %v", paths)
+	}
+}
+
+func TestGraph_GetAllCyclePaths_ConcurrentNoDeadlock(t *testing.T) {
+	t.Parallel()
+
+	g := New()
+	g.AddNode("A", []string{"B"})
+	g.AddNode("B", []string{"C"})
+	g.AddNode("C", []string{"A"})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 100 {
+			g.GetAllCyclePaths()
+		}
+	}()
+
+	for range 100 {
+		g.AddNode("D", nil)
+		g.RemoveNode("D")
+	}
+
+	<-done
+}
+
 func BenchmarkGraph_DetectCycles(b *testing.B) {
 	g := New()
 	for i := 0; i < 100; i++ {

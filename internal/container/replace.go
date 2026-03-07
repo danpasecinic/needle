@@ -9,13 +9,10 @@ func (c *Container) Replace(key string, provider ProviderFunc, dependencies []st
 	c.registry.Remove(key)
 	c.graph.RemoveNode(key)
 
-	if err := c.registry.Register(key, provider, dependencies); err != nil {
-		return err
-	}
-
+	_ = c.registry.Register(key, provider, dependencies)
 	c.graph.AddNode(key, dependencies)
 
-	if c.graph.HasCycle() {
+	if len(dependencies) > 0 && c.graph.HasCycle() {
 		c.registry.Remove(key)
 		c.graph.RemoveNode(key)
 		cyclePath := c.graph.FindCyclePath(key)
@@ -32,10 +29,7 @@ func (c *Container) ReplaceValue(key string, value any) error {
 	c.registry.Remove(key)
 	c.graph.RemoveNode(key)
 
-	if err := c.registry.RegisterValue(key, value); err != nil {
-		return err
-	}
-
+	_ = c.registry.RegisterValue(key, value)
 	c.graph.AddNode(key, nil)
 	return nil
 }
