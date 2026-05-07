@@ -19,11 +19,12 @@ func BenchmarkNamed_10_Needle(b *testing.B) {
 		for j := 0; j < 10; j++ {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = needle.ProvideNamed(
-				c, key, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			_ = needle.Register(c, needle.Spec[*Config]{
+				Name: key,
+				Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
-			)
+			})
 		}
 	}
 }

@@ -124,16 +124,14 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 	return entry.Instance, nil
 }
 
-func (c *Container) runLazyStart(ctx context.Context, key string, _ *ServiceEntry) error {
+func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {
 	start := time.Now()
 	var startErr error
 
-	hooks := c.registry.GetOnStartHooks(key)
-	for _, hook := range hooks {
+	if entry.OnStart != nil {
 		c.logger.Debug("running lazy OnStart hook", "service", key)
-		if err := hook(ctx); err != nil {
+		if err := entry.OnStart(ctx); err != nil {
 			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
-			break
 		}
 	}
 

@@ -80,23 +80,23 @@ func (m *MessageQueue) SetReady(ready bool) {
 func main() {
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*Database, error) {
+	_ = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*Database, error) {
 			return NewDatabase(), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*Cache, error) {
+	_ = needle.Register(c, needle.Spec[*Cache]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*Cache, error) {
 			return NewCache(), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*MessageQueue, error) {
+	_ = needle.Register(c, needle.Spec[*MessageQueue]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*MessageQueue, error) {
 			return NewMessageQueue(), nil
 		},
-	)
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)

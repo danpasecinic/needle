@@ -72,11 +72,12 @@ func benchmarkLifecycleNeedle(b *testing.B, count int, parallel bool) {
 		for j := 0; j < count; j++ {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = needle.ProvideNamed(
-				c, key, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			_ = needle.Register(c, needle.Spec[*Config]{
+				Name: key,
+				Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
-			)
+			})
 		}
 
 		ctx := context.Background()
@@ -99,23 +100,20 @@ func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool) {
 		for j := 0; j < count; j++ {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = needle.ProvideNamed(
-				c, key, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			_ = needle.Register(c, needle.Spec[*Config]{
+				Name: key,
+				Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
-				needle.WithOnStart(
-					func(ctx context.Context) error {
-						time.Sleep(time.Millisecond)
-						return nil
-					},
-				),
-				needle.WithOnStop(
-					func(ctx context.Context) error {
-						time.Sleep(time.Millisecond)
-						return nil
-					},
-				),
-			)
+				OnStart: func(ctx context.Context) error {
+					time.Sleep(time.Millisecond)
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					time.Sleep(time.Millisecond)
+					return nil
+				},
+			})
 		}
 
 		ctx := context.Background()

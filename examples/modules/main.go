@@ -70,8 +70,8 @@ var RepositoryModule = needle.NewModule("repository")
 var ServiceModule = needle.NewModule("service")
 
 func init() {
-	needle.ModuleProvide(
-		DatabaseModule, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	needle.ModuleRegister(DatabaseModule, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			cfg, _ := r.Resolve(ctx, "*main.Config")
 			logger, _ := r.Resolve(ctx, "*log/slog.Logger")
 			return &Database{
@@ -79,17 +79,17 @@ func init() {
 				logger: logger.(*slog.Logger),
 			}, nil
 		},
-	)
+	})
 
-	needle.ModuleProvide(
-		CacheModule, func(ctx context.Context, r needle.Resolver) (*Cache, error) {
+	needle.ModuleRegister(CacheModule, needle.Spec[*Cache]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Cache, error) {
 			cfg, _ := r.Resolve(ctx, "*main.Config")
 			return &Cache{url: cfg.(*Config).CacheURL}, nil
 		},
-	)
+	})
 
-	needle.ModuleProvide(
-		RepositoryModule, func(ctx context.Context, r needle.Resolver) (*PostgresUserRepository, error) {
+	needle.ModuleRegister(RepositoryModule, needle.Spec[*PostgresUserRepository]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepository, error) {
 			db, _ := r.Resolve(ctx, "*main.Database")
 			cache, _ := r.Resolve(ctx, "*main.Cache")
 			return &PostgresUserRepository{
@@ -97,12 +97,12 @@ func init() {
 				cache: cache.(*Cache),
 			}, nil
 		},
-	)
+	})
 
-	needle.ModuleBind[UserRepository, *PostgresUserRepository](RepositoryModule)
+	needle.ModuleRegister(RepositoryModule, needle.SpecFromBinding[UserRepository, *PostgresUserRepository]())
 
-	needle.ModuleProvide(
-		ServiceModule, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
+	needle.ModuleRegister(ServiceModule, needle.Spec[*UserService]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*UserService, error) {
 			repo, _ := r.Resolve(ctx, "main.UserRepository")
 			logger, _ := r.Resolve(ctx, "*log/slog.Logger")
 			return &UserService{
@@ -110,7 +110,7 @@ func init() {
 				logger: logger.(*slog.Logger),
 			}, nil
 		},
-	)
+	})
 }
 
 var AppModule = needle.NewModule("app").
@@ -124,13 +124,11 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	c := needle.New(needle.WithLogger(logger))
 
-	_ = needle.ProvideValue(c, logger)
-	needle.ModuleProvideValue(
-		ConfigModule, &Config{
-			DatabaseURL: "postgres://localhost/mydb",
-			CacheURL:    "redis://localhost:6379",
-		},
-	)
+	_ = needle.Register(c, needle.SpecValue(logger))
+	needle.ModuleRegister(ConfigModule, needle.SpecValue(&Config{
+		DatabaseURL: "postgres://localhost/mydb",
+		CacheURL:    "redis://localhost:6379",
+	}))
 
 	if err := c.Apply(AppModule); err != nil {
 		logger.Error("failed to apply modules", "error", err)

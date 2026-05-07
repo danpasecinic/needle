@@ -52,19 +52,17 @@ type UserService struct {
 func main() {
 	c := needle.New()
 
-	_ = needle.ProvideValue(
-		c, &Config{
-			DatabaseURL: "postgres://localhost/mydb",
-			CacheSize:   1000,
-		},
-	)
+	_ = needle.Register(c, needle.SpecValue(&Config{
+		DatabaseURL: "postgres://localhost/mydb",
+		CacheSize:   1000,
+	}))
 
-	_ = needle.ProvideFunc[*Logger](c, NewLogger)
-	_ = needle.ProvideFunc[*Database](c, NewDatabase)
-	_ = needle.ProvideFunc[*Cache](c, NewCache)
+	_ = needle.Register(c, needle.SpecFromConstructor[*Logger](NewLogger))
+	_ = needle.Register(c, needle.SpecFromConstructor[*Database](NewDatabase))
+	_ = needle.Register(c, needle.SpecFromConstructor[*Cache](NewCache))
 
-	_ = needle.ProvideStruct[*UserRepository](c)
-	_ = needle.ProvideStruct[*UserService](c)
+	_ = needle.Register(c, needle.SpecFromStruct[*UserRepository]())
+	_ = needle.Register(c, needle.SpecFromStruct[*UserService]())
 
 	if err := c.Validate(); err != nil {
 		panic(err)
@@ -77,19 +75,9 @@ func main() {
 	fmt.Printf("  Repo DB URL: %s\n", svc.Repo.DB.URL)
 	fmt.Printf("  Repo Cache size: %d\n", svc.Repo.Cache.Size)
 
-	fmt.Println("\n--- Comparison ---")
-	fmt.Println("Traditional (verbose):")
-	fmt.Println(
-		`  needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
-      repo := needle.MustInvoke[*UserRepository](c)
-      logger := needle.MustInvoke[*Logger](c)
-      return &UserService{Repo: repo, Logger: logger}, nil
-  })`,
-	)
+	fmt.Println("\nWith SpecFromConstructor (auto-wired params):")
+	fmt.Println(`  needle.Register(c, needle.SpecFromConstructor[*Database](NewDatabase))`)
 
-	fmt.Println("\nWith ProvideFunc (constructor auto-wiring):")
-	fmt.Println(`  needle.ProvideFunc[*Database](c, NewDatabase)`)
-
-	fmt.Println("\nWith ProvideStruct (struct tag injection):")
-	fmt.Println(`  needle.ProvideStruct[*UserService](c)`)
+	fmt.Println("\nWith SpecFromStruct (struct-tag injection):")
+	fmt.Println(`  needle.Register(c, needle.SpecFromStruct[*UserService]())`)
 }

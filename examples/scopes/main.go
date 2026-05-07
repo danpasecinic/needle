@@ -51,32 +51,33 @@ func NewPooledConnection() *PooledConnection {
 func main() {
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*SingletonCounter, error) {
+	_ = needle.Register(c, needle.Spec[*SingletonCounter]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*SingletonCounter, error) {
 			return NewSingletonCounter(), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*TransientCounter, error) {
+	_ = needle.Register(c, needle.Spec[*TransientCounter]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*TransientCounter, error) {
 			return NewTransientCounter(), nil
 		},
-		needle.WithScope(needle.Transient),
-	)
+		Scope: needle.Transient,
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*RequestCounter, error) {
+	_ = needle.Register(c, needle.Spec[*RequestCounter]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*RequestCounter, error) {
 			return NewRequestCounter(), nil
 		},
-		needle.WithScope(needle.Request),
-	)
+		Scope: needle.Request,
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*PooledConnection, error) {
+	_ = needle.Register(c, needle.Spec[*PooledConnection]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*PooledConnection, error) {
 			return NewPooledConnection(), nil
 		},
-		needle.WithPoolSize(3),
-	)
+		Scope:    needle.Pooled,
+		PoolSize: 3,
+	})
 
 	fmt.Println("=== Singleton Scope ===")
 	fmt.Println("Same instance returned every time:")

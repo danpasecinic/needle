@@ -14,7 +14,7 @@ func TestConcurrentSingletonResolve(t *testing.T) {
 	t.Parallel()
 
 	c := New()
-	_ = ProvideValue(c, &testCounter{id: 42})
+	_ = Register(c, SpecValue(&testCounter{id: 42}))
 
 	const n = 100
 	results := make([]*testCounter, n)
@@ -41,7 +41,7 @@ func TestConcurrentSingletonResolve(t *testing.T) {
 	}
 }
 
-func TestConcurrentNamedProvideAndInvoke(t *testing.T) {
+func TestConcurrentNamedRegisterAndInvoke(t *testing.T) {
 	t.Parallel()
 
 	c := New()
@@ -52,7 +52,7 @@ func TestConcurrentNamedProvideAndInvoke(t *testing.T) {
 	for i := range n {
 		go func(idx int) {
 			defer wg.Done()
-			_ = ProvideNamedValue(c, fmt.Sprintf("s%d", idx), &concService{id: idx})
+			_ = Register(c, SpecValue(&concService{id: idx}).WithName(fmt.Sprintf("s%d", idx)))
 		}(i)
 	}
 	wg.Wait()
@@ -80,13 +80,16 @@ func TestConcurrentPoolAcquireRelease(t *testing.T) {
 	c := New()
 	var created atomic.Int32
 
-	_ = Provide(c, func(_ context.Context, _ Resolver) (*testCounter, error) {
-		return &testCounter{id: int(created.Add(1))}, nil
-	}, WithPoolSize(3))
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(_ context.Context, _ Resolver) (*testCounter, error) {
+			return &testCounter{id: int(created.Add(1))}, nil
+		},
+		Scope:    Pooled,
+		PoolSize: 3,
+	})
 
 	key := reflect.TypeKey[*testCounter]()
 
-	// Pre-fill: create 3 instances, then release all to pool
 	instances := make([]*testCounter, 3)
 	for i := range 3 {
 		inst, err := Invoke[*testCounter](c)
@@ -99,7 +102,6 @@ func TestConcurrentPoolAcquireRelease(t *testing.T) {
 		c.Release(key, inst)
 	}
 
-	// Concurrent acquire-release cycles from the pre-filled pool
 	const n = 20
 	var wg sync.WaitGroup
 	wg.Add(n)
@@ -128,9 +130,13 @@ func TestConcurrentTransientDifferentKeys(t *testing.T) {
 
 	for i := range n {
 		idx := i
-		_ = ProvideNamed(c, fmt.Sprintf("t%d", idx), func(_ context.Context, _ Resolver) (*concService, error) {
-			return &concService{id: idx}, nil
-		}, WithScope(Transient))
+		_ = Register(c, Spec[*concService]{
+			Name: fmt.Sprintf("t%d", idx),
+			Provider: func(_ context.Context, _ Resolver) (*concService, error) {
+				return &concService{id: idx}, nil
+			},
+			Scope: Transient,
+		})
 	}
 
 	var wg sync.WaitGroup
@@ -157,9 +163,12 @@ func TestConcurrentRequestScopeIsolation(t *testing.T) {
 	c := New()
 	var created atomic.Int32
 
-	_ = Provide(c, func(_ context.Context, _ Resolver) (*testCounter, error) {
-		return &testCounter{id: int(created.Add(1))}, nil
-	}, WithScope(Request))
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(_ context.Context, _ Resolver) (*testCounter, error) {
+			return &testCounter{id: int(created.Add(1))}, nil
+		},
+		Scope: Request,
+	})
 
 	const numContexts = 10
 	const resolvesPerCtx = 5
@@ -193,7 +202,7 @@ func TestConcurrentReplaceNoRace(t *testing.T) {
 	t.Parallel()
 
 	c := New()
-	_ = ProvideValue(c, &testCounter{id: 0})
+	_ = Register(c, SpecValue(&testCounter{id: 0}))
 
 	const n = 50
 	var wg sync.WaitGroup
@@ -202,10 +211,8 @@ func TestConcurrentReplaceNoRace(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			if idx%2 == 0 {
-				_ = ReplaceValue(c, &testCounter{id: idx})
+				_ = Replace(c, SpecValue(&testCounter{id: idx}))
 			} else {
-				// Invoke may fail due to concurrent replace,
-				// we're verifying no panics or data races.
 				_, _ = Invoke[*testCounter](c)
 			}
 		}(i)

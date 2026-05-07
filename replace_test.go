@@ -20,7 +20,7 @@ func TestReplace(t *testing.T) {
 		"replaces existing provider", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideValue(c, &ReplaceConfig{Value: "original"})
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "original"}))
 
 			cfg, err := needle.Invoke[*ReplaceConfig](c)
 			if err != nil {
@@ -30,7 +30,7 @@ func TestReplace(t *testing.T) {
 				t.Errorf("expected 'original', got '%s'", cfg.Value)
 			}
 
-			_ = needle.ReplaceValue(c, &ReplaceConfig{Value: "replaced"})
+			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "replaced"}))
 
 			cfg, err = needle.Invoke[*ReplaceConfig](c)
 			if err != nil {
@@ -46,27 +46,27 @@ func TestReplace(t *testing.T) {
 		"replaces provider with dependencies", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideValue(c, &ReplaceConfig{Value: "v1"})
-			_ = needle.Provide(
-				c, func(ctx context.Context, r needle.Resolver) (*ReplaceService, error) {
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "v1"}))
+			_ = needle.Register(c, needle.Spec[*ReplaceService]{
+				Provider: func(ctx context.Context, r needle.Resolver) (*ReplaceService, error) {
 					cfg := needle.MustInvoke[*ReplaceConfig](c)
 					return &ReplaceService{Config: cfg}, nil
 				},
-			)
+			})
 
 			svc := needle.MustInvoke[*ReplaceService](c)
 			if svc.Config.Value != "v1" {
 				t.Errorf("expected 'v1', got '%s'", svc.Config.Value)
 			}
 
-			_ = needle.ReplaceValue(c, &ReplaceConfig{Value: "v2"})
+			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "v2"}))
 
-			_ = needle.Replace(
-				c, func(ctx context.Context, r needle.Resolver) (*ReplaceService, error) {
+			_ = needle.Replace(c, needle.Spec[*ReplaceService]{
+				Provider: func(ctx context.Context, r needle.Resolver) (*ReplaceService, error) {
 					cfg := needle.MustInvoke[*ReplaceConfig](c)
 					return &ReplaceService{Config: cfg}, nil
 				},
-			)
+			})
 
 			svc = needle.MustInvoke[*ReplaceService](c)
 			if svc.Config.Value != "v2" {
@@ -79,7 +79,7 @@ func TestReplace(t *testing.T) {
 		"replace non-existent service creates it", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ReplaceValue(c, &ReplaceConfig{Value: "new"})
+			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "new"}))
 
 			cfg, err := needle.Invoke[*ReplaceConfig](c)
 			if err != nil {
@@ -97,7 +97,7 @@ func TestReplaceNamed(t *testing.T) {
 		"replaces named provider", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideNamedValue(c, "primary", &ReplaceConfig{Value: "orig"})
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "orig"}).WithName("primary"))
 
 			cfg, err := needle.InvokeNamed[*ReplaceConfig](c, "primary")
 			if err != nil {
@@ -107,7 +107,7 @@ func TestReplaceNamed(t *testing.T) {
 				t.Errorf("expected 'orig', got '%s'", cfg.Value)
 			}
 
-			_ = needle.ReplaceNamedValue(c, "primary", &ReplaceConfig{Value: "new"})
+			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "new"}).WithName("primary"))
 
 			cfg, err = needle.InvokeNamed[*ReplaceConfig](c, "primary")
 			if err != nil {
@@ -125,9 +125,9 @@ func TestMustReplace(t *testing.T) {
 		"does not panic on valid replace", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideValue(c, &ReplaceConfig{Value: "original"})
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "original"}))
 
-			needle.MustReplaceValue(c, &ReplaceConfig{Value: "replaced"})
+			needle.MustReplace(c, needle.SpecValue(&ReplaceConfig{Value: "replaced"}))
 
 			cfg := needle.MustInvoke[*ReplaceConfig](c)
 			if cfg.Value != "replaced" {
@@ -142,14 +142,14 @@ func TestReplaceWithOptions(t *testing.T) {
 		"replaces with scope option", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideValue(c, &ReplaceConfig{Value: "singleton"})
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "singleton"}))
 
-			_ = needle.Replace(
-				c, func(ctx context.Context, r needle.Resolver) (*ReplaceConfig, error) {
+			_ = needle.Replace(c, needle.Spec[*ReplaceConfig]{
+				Provider: func(ctx context.Context, r needle.Resolver) (*ReplaceConfig, error) {
 					return &ReplaceConfig{Value: "transient"}, nil
 				},
-				needle.WithScope(needle.Transient),
-			)
+				Scope: needle.Transient,
+			})
 
 			cfg1 := needle.MustInvoke[*ReplaceConfig](c)
 			cfg2 := needle.MustInvoke[*ReplaceConfig](c)
@@ -165,21 +165,21 @@ func NewReplaceService(cfg *ReplaceConfig) *ReplaceService {
 	return &ReplaceService{Config: cfg}
 }
 
-func TestReplaceFunc(t *testing.T) {
+func TestReplaceConstructor(t *testing.T) {
 	t.Run(
 		"replaces with auto-wired constructor", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideValue(c, &ReplaceConfig{Value: "v1"})
-			_ = needle.ProvideFunc[*ReplaceService](c, NewReplaceService)
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "v1"}))
+			_ = needle.Register(c, needle.SpecFromConstructor[*ReplaceService](NewReplaceService))
 
 			svc := needle.MustInvoke[*ReplaceService](c)
 			if svc.Config.Value != "v1" {
 				t.Errorf("expected 'v1', got '%s'", svc.Config.Value)
 			}
 
-			_ = needle.ReplaceValue(c, &ReplaceConfig{Value: "v2"})
-			_ = needle.ReplaceFunc[*ReplaceService](c, NewReplaceService)
+			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "v2"}))
+			_ = needle.Replace(c, needle.SpecFromConstructor[*ReplaceService](NewReplaceService))
 
 			svc = needle.MustInvoke[*ReplaceService](c)
 			if svc.Config.Value != "v2" {
@@ -198,16 +198,16 @@ func TestReplaceStruct(t *testing.T) {
 		"replaces with struct injection", func(t *testing.T) {
 			c := needle.New()
 
-			_ = needle.ProvideValue(c, &ReplaceConfig{Value: "original"})
-			_ = needle.ProvideStruct[*ReplaceStructService](c)
+			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "original"}))
+			_ = needle.Register(c, needle.SpecFromStruct[*ReplaceStructService]())
 
 			svc := needle.MustInvoke[*ReplaceStructService](c)
 			if svc.Config.Value != "original" {
 				t.Errorf("expected 'original', got '%s'", svc.Config.Value)
 			}
 
-			_ = needle.ReplaceValue(c, &ReplaceConfig{Value: "replaced"})
-			_ = needle.ReplaceStruct[*ReplaceStructService](c)
+			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "replaced"}))
+			_ = needle.Replace(c, needle.SpecFromStruct[*ReplaceStructService]())
 
 			svc = needle.MustInvoke[*ReplaceStructService](c)
 			if svc.Config.Value != "replaced" {

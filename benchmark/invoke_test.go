@@ -13,7 +13,7 @@ import (
 
 func BenchmarkInvoke_Singleton_Needle(b *testing.B) {
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Host: "localhost", Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Host: "localhost", Port: 8080}))
 	ctx := context.Background()
 	_ = c.Start(ctx)
 
@@ -69,35 +69,35 @@ func BenchmarkInvoke_Singleton_Fx(b *testing.B) {
 
 func BenchmarkInvoke_Chain_Needle(b *testing.B) {
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Host: "localhost", Port: 8080})
-	_ = needle.ProvideValue(c, &Logger{Level: "info"})
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	_ = needle.Register(c, needle.SpecValue(&Config{Host: "localhost", Port: 8080}))
+	_ = needle.Register(c, needle.SpecValue(&Logger{Level: "info"}))
+	_ = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			log := needle.MustInvoke[*Logger](c)
 			return &Database{Config: cfg, Logger: log}, nil
 		},
-	)
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Cache, error) {
+	})
+	_ = needle.Register(c, needle.Spec[*Cache]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Cache, error) {
 			log := needle.MustInvoke[*Logger](c)
 			return &Cache{Logger: log}, nil
 		},
-	)
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Repository, error) {
+	})
+	_ = needle.Register(c, needle.Spec[*Repository]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Repository, error) {
 			db := needle.MustInvoke[*Database](c)
 			cache := needle.MustInvoke[*Cache](c)
 			return &Repository{DB: db, Cache: cache}, nil
 		},
-	)
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
+	})
+	_ = needle.Register(c, needle.Spec[*Service]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Service, error) {
 			repo := needle.MustInvoke[*Repository](c)
 			log := needle.MustInvoke[*Logger](c)
 			return &Service{Repo: repo, Logger: log}, nil
 		},
-	)
+	})
 	ctx := context.Background()
 	_ = c.Start(ctx)
 

@@ -47,33 +47,31 @@ func (s *UserService) GetUser(id int) string {
 func main() {
 	c := needle.New()
 
-	_ = needle.ProvideValue(
-		c, &Config{
-			DatabaseURL: "postgres://localhost/mydb",
-			Port:        8080,
-		},
-	)
+	_ = needle.Register(c, needle.SpecValue(&Config{
+		DatabaseURL: "postgres://localhost/mydb",
+		Port:        8080,
+	}))
 
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	_ = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			return NewDatabase(cfg), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*UserRepository, error) {
+	_ = needle.Register(c, needle.Spec[*UserRepository]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*UserRepository, error) {
 			db := needle.MustInvoke[*Database](c)
 			return NewUserRepository(db), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*UserService, error) {
+	_ = needle.Register(c, needle.Spec[*UserService]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*UserService, error) {
 			repo := needle.MustInvoke[*UserRepository](c)
 			return NewUserService(repo), nil
 		},
-	)
+	})
 
 	if err := c.Validate(); err != nil {
 		panic(err)

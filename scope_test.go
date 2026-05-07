@@ -13,12 +13,12 @@ func TestScope_Singleton(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testCounter, error) {
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
 		},
-	)
+	})
 
 	first, _ := Invoke[*testCounter](c)
 	second, _ := Invoke[*testCounter](c)
@@ -40,12 +40,13 @@ func TestScope_Transient(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testCounter, error) {
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
-		}, WithScope(Transient),
-	)
+		},
+		Scope: Transient,
+	})
 
 	ctx := context.Background()
 
@@ -73,12 +74,13 @@ func TestScope_Request(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testCounter, error) {
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
-		}, WithScope(Request),
-	)
+		},
+		Scope: Request,
+	})
 
 	ctx1 := WithRequestScope(context.Background())
 	ctx2 := WithRequestScope(context.Background())
@@ -111,11 +113,12 @@ func TestScope_Request_NoScope(t *testing.T) {
 
 	c := New()
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testCounter, error) {
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
 			return &testCounter{id: 1}, nil
-		}, WithScope(Request),
-	)
+		},
+		Scope: Request,
+	})
 
 	ctx := context.Background()
 
@@ -132,12 +135,14 @@ func TestScope_Pooled(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testCounter, error) {
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
-		}, WithPoolSize(2),
-	)
+		},
+		Scope:    Pooled,
+		PoolSize: 2,
+	})
 
 	ctx := context.Background()
 
@@ -174,12 +179,14 @@ func TestScope_Pooled_Overflow(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testCounter, error) {
+	_ = Register(c, Spec[*testCounter]{
+		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
-		}, WithPoolSize(1),
-	)
+		},
+		Scope:    Pooled,
+		PoolSize: 1,
+	})
 
 	ctx := context.Background()
 

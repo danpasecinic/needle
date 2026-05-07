@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -112,12 +111,10 @@ func (c *Container) startService(ctx context.Context, key string) error {
 	}
 
 	var startErr error
-	hooks := c.registry.GetOnStartHooks(key)
-	for _, hook := range hooks {
+	if entry, ok := c.registry.GetEntry(key); ok && entry.OnStart != nil {
 		c.logger.Debug("running OnStart hook", "service", key)
-		if err := hook(ctx); err != nil {
+		if err := entry.OnStart(ctx); err != nil {
 			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
-			break
 		}
 	}
 
@@ -237,17 +234,15 @@ func (c *Container) stopService(ctx context.Context, key string) error {
 	}
 
 	start := time.Now()
-	var errs []error
+	var stopErr error
 
-	hooks := c.registry.GetOnStopHooks(key)
-	for i := len(hooks) - 1; i >= 0; i-- {
+	if entry.OnStop != nil {
 		c.logger.Debug("running OnStop hook", "service", key)
-		if err := hooks[i](ctx); err != nil {
-			errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
+		if err := entry.OnStop(ctx); err != nil {
+			stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
 		}
 	}
 
-	stopErr := errors.Join(errs...)
 	c.callStopHooks(key, time.Since(start), stopErr)
 	return stopErr
 }

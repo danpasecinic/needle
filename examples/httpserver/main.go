@@ -79,43 +79,37 @@ func main() {
 
 	c := needle.New(needle.WithLogger(logger))
 
-	_ = needle.ProvideValue(
-		c, &Config{
-			Port:         8080,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-		},
-	)
+	_ = needle.Register(c, needle.SpecValue(&Config{
+		Port:         8080,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}))
 
-	_ = needle.ProvideValue(c, logger)
+	_ = needle.Register(c, needle.SpecValue(logger))
 
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (http.Handler, error) {
+	_ = needle.Register(c, needle.Spec[http.Handler]{
+		Provider: func(ctx context.Context, r needle.Resolver) (http.Handler, error) {
 			log := needle.MustInvoke[*slog.Logger](c)
 			return NewHandler(log), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
+	_ = needle.Register(c, needle.Spec[*Server]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			handler := needle.MustInvoke[http.Handler](c)
 			log := needle.MustInvoke[*slog.Logger](c)
 			return NewServer(cfg, handler, log), nil
 		},
-		needle.WithOnStart(
-			func(ctx context.Context) error {
-				srv := needle.MustInvoke[*Server](c)
-				return srv.Start(ctx)
-			},
-		),
-		needle.WithOnStop(
-			func(ctx context.Context) error {
-				srv := needle.MustInvoke[*Server](c)
-				return srv.Stop(ctx)
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			srv := needle.MustInvoke[*Server](c)
+			return srv.Start(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			srv := needle.MustInvoke[*Server](c)
+			return srv.Stop(ctx)
+		},
+	})
 
 	logger.Info("starting application")
 	if err := c.Run(context.Background()); err != nil {
