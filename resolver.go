@@ -2,8 +2,9 @@ package needle
 
 import (
 	"context"
-	"strings"
+	"errors"
 
+	"github.com/danpasecinic/needle/internal/container"
 	"github.com/danpasecinic/needle/internal/reflect"
 )
 
@@ -159,7 +160,7 @@ func InvokeOptionalNamedCtx[T any](ctx context.Context, c *Container, name strin
 func resolveOptional[T any](ctx context.Context, c *Container, key, displayName string) (Optional[T], error) {
 	instance, err := c.internal.Resolve(ctx, key)
 	if err != nil {
-		if isServiceNotFound(err) {
+		if errors.Is(err, container.ErrServiceNotFound) {
 			return None[T](), nil
 		}
 		return None[T](), errResolutionFailed(displayName, err)
@@ -171,8 +172,4 @@ func resolveOptional[T any](ctx context.Context, c *Container, key, displayName 
 	}
 
 	return Some(typed), nil
-}
-
-func isServiceNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "service not found:")
 }

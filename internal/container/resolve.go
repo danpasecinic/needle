@@ -42,7 +42,7 @@ func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 
 	ctx, ok := withResolving(ctx, key)
 	if !ok {
-		err := fmt.Errorf("circular resolution detected for: %s", key)
+		err := fmt.Errorf("%w: %s", ErrCircularResolution, key)
 		c.callResolveHooks(key, time.Since(start), err)
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (c *Container) resolveSlow(ctx context.Context, key string) (any, error) {
 	c.mu.RUnlock()
 
 	if !exists {
-		err := fmt.Errorf("service not found: %s", key)
+		err := fmt.Errorf("%w: %s", ErrServiceNotFound, key)
 		c.callResolveHooks(key, time.Since(start), err)
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func getRequestScope(ctx context.Context) *RequestScope {
 func (c *Container) resolveRequest(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
 	rs := getRequestScope(ctx)
 	if rs == nil {
-		return nil, fmt.Errorf("request scope not found in context for %s; use WithRequestScope(ctx)", key)
+		return nil, fmt.Errorf("%w: %s; use WithRequestScope(ctx)", ErrRequestScopeMissing, key)
 	}
 
 	if instance, ok := rs.Get(key); ok {
