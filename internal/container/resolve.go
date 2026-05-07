@@ -3,10 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
-
-	"github.com/danpasecinic/needle/internal/scope"
 )
 
 type resolvingKey struct{}
@@ -69,59 +66,27 @@ func (c *Container) callResolveHooks(key string, duration time.Duration, err err
 }
 
 func (c *Container) resolveWithScope(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	switch entry.Scope {
-	case scope.Singleton:
-		return c.resolveSingleton(ctx, key, entry)
-	case scope.Transient:
-		return c.resolveTransient(ctx, key, entry)
-	case scope.Request:
-		return c.resolveRequest(ctx, key, entry)
-	case scope.Pooled:
-		return c.resolvePooled(ctx, key, entry)
-	default:
-		return c.resolveSingleton(ctx, key, entry)
-	}
+	return strategyFor(entry.Scope).Acquire(ctx, c, key, entry, func() (any, error) {
+		return c.buildInstance(ctx, key, entry)
+	})
 }
 
-func (c *Container) resolveSingleton(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	if entry.Provider == nil {
-		return entry.Instance, nil
-	}
-
-	entry.once.Do(func() {
-		for _, dep := range entry.Dependencies {
-			if _, err := c.Resolve(ctx, dep); err != nil {
-				entry.initErr = fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
-				return
-			}
-		}
-
-		inst, err := entry.Provider(ctx)
-		if err != nil {
-			entry.initErr = fmt.Errorf("provider failed for %s: %w", key, err)
-			return
-		}
-
-		inst, err = c.applyDecorators(ctx, key, inst)
-		if err != nil {
-			entry.initErr = err
-			return
-		}
-
-		c.registry.SetInstance(key, inst)
-	})
-
-	if entry.initErr != nil {
-		return nil, entry.initErr
-	}
-
-	if entry.Lazy && !entry.StartRan && c.state == StateRunning {
-		if err := c.runLazyStart(ctx, key, entry); err != nil {
-			return nil, err
+// buildInstance is the shared dep-resolve / provider-call / decorator chain
+// used by every scope strategy. The strategy decides whether (and when) to
+// call this; the loop itself lives in one place.
+func (c *Container) buildInstance(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
+	for _, dep := range entry.Dependencies {
+		if _, err := c.Resolve(ctx, dep); err != nil {
+			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
 		}
 	}
 
-	return entry.Instance, nil
+	instance, err := entry.Provider(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
+	}
+
+	return c.applyDecorators(ctx, key, instance)
 }
 
 func (c *Container) runLazyStart(ctx context.Context, key string, entry *ServiceEntry) error {
@@ -138,105 +103,4 @@ func (c *Container) runLazyStart(ctx context.Context, key string, entry *Service
 	c.registry.SetStartRan(key)
 	c.callStartHooks(key, time.Since(start), startErr)
 	return startErr
-}
-
-func (c *Container) resolveTransient(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	for _, dep := range entry.Dependencies {
-		if _, err := c.Resolve(ctx, dep); err != nil {
-			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
-		}
-	}
-
-	instance, err := entry.Provider(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
-	}
-
-	return c.applyDecorators(ctx, key, instance)
-}
-
-type requestScopeKey struct{}
-
-type RequestScope struct {
-	mu        sync.RWMutex
-	instances map[string]any
-}
-
-func NewRequestScope() *RequestScope {
-	return &RequestScope{
-		instances: make(map[string]any),
-	}
-}
-
-func (rs *RequestScope) Get(key string) (any, bool) {
-	rs.mu.RLock()
-	defer rs.mu.RUnlock()
-	instance, ok := rs.instances[key]
-	return instance, ok
-}
-
-func (rs *RequestScope) Set(key string, instance any) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-	rs.instances[key] = instance
-}
-
-func WithRequestScope(ctx context.Context) context.Context {
-	return context.WithValue(ctx, requestScopeKey{}, NewRequestScope())
-}
-
-func getRequestScope(ctx context.Context) *RequestScope {
-	if rs, ok := ctx.Value(requestScopeKey{}).(*RequestScope); ok {
-		return rs
-	}
-	return nil
-}
-
-func (c *Container) resolveRequest(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	rs := getRequestScope(ctx)
-	if rs == nil {
-		return nil, fmt.Errorf("%w: %s; use WithRequestScope(ctx)", ErrRequestScopeMissing, key)
-	}
-
-	if instance, ok := rs.Get(key); ok {
-		return instance, nil
-	}
-
-	for _, dep := range entry.Dependencies {
-		if _, err := c.Resolve(ctx, dep); err != nil {
-			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
-		}
-	}
-
-	instance, err := entry.Provider(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
-	}
-
-	instance, err = c.applyDecorators(ctx, key, instance)
-	if err != nil {
-		return nil, err
-	}
-
-	rs.Set(key, instance)
-	return instance, nil
-}
-
-func (c *Container) resolvePooled(ctx context.Context, key string, entry *ServiceEntry) (any, error) {
-	if instance, ok := c.registry.AcquireFromPool(key); ok {
-		return instance, nil
-	}
-
-	for _, dep := range entry.Dependencies {
-		if _, err := c.Resolve(ctx, dep); err != nil {
-			return nil, fmt.Errorf("failed to resolve dependency %s for %s: %w", dep, key, err)
-		}
-	}
-
-	instance, err := entry.Provider(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
-	}
-
-	return c.applyDecorators(ctx, key, instance)
 }
