@@ -72,15 +72,15 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, logger)
+	_ = needle.Register(c, needle.SpecValue(logger))
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*PostgresUserRepository, error) {
+	_ = needle.Register(c, needle.Spec[*PostgresUserRepository]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*PostgresUserRepository, error) {
 			return &PostgresUserRepository{}, nil
 		},
-	)
+	})
 
-	_ = needle.Bind[UserRepository, *PostgresUserRepository](c)
+	_ = needle.Register(c, needle.SpecFromBinding[UserRepository, *PostgresUserRepository]())
 
 	needle.Decorate(
 		c, func(_ context.Context, _ needle.Resolver, repo UserRepository) (UserRepository, error) {

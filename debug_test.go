@@ -27,13 +27,13 @@ func TestPrintGraph(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
+	_ = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			_ = needle.MustInvoke[*Config](c)
 			return &Database{}, nil
 		},
-	)
+	})
 
 	var buf bytes.Buffer
 	c.FprintGraph(&buf)
@@ -52,7 +52,7 @@ func TestPrintGraphWithInstantiated(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	_ = needle.MustInvoke[*Config](c)
 
 	var buf bytes.Buffer
@@ -60,7 +60,7 @@ func TestPrintGraphWithInstantiated(t *testing.T) {
 
 	output := buf.String()
 	if !strings.Contains(output, "●") {
-		t.Errorf("expected instantiated marker (●), got: %s", output)
+		t.Errorf("expected instantiated marker, got: %s", output)
 	}
 }
 
@@ -69,18 +69,18 @@ func TestPrintGraphNotInstantiated(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+	_ = needle.Register(c, needle.Spec[*Config]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 			return &Config{Port: 8080}, nil
 		},
-	)
+	})
 
 	var buf bytes.Buffer
 	c.FprintGraph(&buf)
 
 	output := buf.String()
 	if !strings.Contains(output, "○") {
-		t.Errorf("expected not-instantiated marker (○), got: %s", output)
+		t.Errorf("expected not-instantiated marker, got: %s", output)
 	}
 }
 
@@ -88,7 +88,7 @@ func TestSprintGraph(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 
 	output := c.SprintGraph()
 	if output == "" {
@@ -101,12 +101,13 @@ func TestPrintGraphDOT(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
+	_ = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			return &Database{}, nil
-		}, needle.WithDependencies("*needle_test.Config"),
-	)
+		},
+		Dependencies: []string{"*needle_test.Config"},
+	})
 
 	var buf bytes.Buffer
 	c.FprintGraphDOT(&buf)
@@ -127,7 +128,7 @@ func TestSprintGraphDOT(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 
 	output := c.SprintGraphDOT()
 	if !strings.Contains(output, "digraph") {
@@ -140,12 +141,13 @@ func TestGraphInfo(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
-	_ = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
+	_ = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			return &Database{}, nil
-		}, needle.WithDependencies("*needle_test.Config"),
-	)
+		},
+		Dependencies: []string{"*needle_test.Config"},
+	})
 
 	info := c.Graph()
 

@@ -103,22 +103,22 @@ func main() {
 func runWithAllDeps() {
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*RedisCache, error) {
+	_ = needle.Register(c, needle.Spec[*RedisCache]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*RedisCache, error) {
 			return NewRedisCache(), nil
 		},
-	)
-	_ = needle.Bind[Cache, *RedisCache](c)
+	})
+	_ = needle.Register(c, needle.SpecFromBinding[Cache, *RedisCache]())
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*PrometheusMetrics, error) {
+	_ = needle.Register(c, needle.Spec[*PrometheusMetrics]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*PrometheusMetrics, error) {
 			return &PrometheusMetrics{}, nil
 		},
-	)
-	_ = needle.Bind[Metrics, *PrometheusMetrics](c)
+	})
+	_ = needle.Register(c, needle.SpecFromBinding[Metrics, *PrometheusMetrics]())
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*UserService, error) {
+	_ = needle.Register(c, needle.Spec[*UserService]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*UserService, error) {
 			cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 				func() Cache {
 					return NewInMemoryCache()
@@ -127,7 +127,7 @@ func runWithAllDeps() {
 			metrics := mustOptional(needle.InvokeOptional[Metrics](c)).OrElse(&NoOpMetrics{})
 			return &UserService{cache: cache, metrics: metrics}, nil
 		},
-	)
+	})
 
 	svc := needle.MustInvoke[*UserService](c)
 	fmt.Println(svc.GetUser(42))
@@ -137,8 +137,8 @@ func runWithAllDeps() {
 func runWithoutOptionalDeps() {
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*UserService, error) {
+	_ = needle.Register(c, needle.Spec[*UserService]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*UserService, error) {
 			cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 				func() Cache {
 					return NewInMemoryCache()
@@ -147,7 +147,7 @@ func runWithoutOptionalDeps() {
 			metrics := mustOptional(needle.InvokeOptional[Metrics](c)).OrElse(&NoOpMetrics{})
 			return &UserService{cache: cache, metrics: metrics}, nil
 		},
-	)
+	})
 
 	svc := needle.MustInvoke[*UserService](c)
 	fmt.Println(svc.GetUser(42))
@@ -157,8 +157,8 @@ func runWithoutOptionalDeps() {
 func demonstrateOptionalAPI() {
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, &RedisCache{data: make(map[string]string)})
-	_ = needle.Bind[Cache, *RedisCache](c)
+	_ = needle.Register(c, needle.SpecValue(&RedisCache{data: make(map[string]string)}))
+	_ = needle.Register(c, needle.SpecFromBinding[Cache, *RedisCache]())
 
 	fmt.Println("--- Present() and Value() ---")
 	opt := mustOptional(needle.InvokeOptional[Cache](c))

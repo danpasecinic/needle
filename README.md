@@ -7,11 +7,11 @@ A modern, type-safe dependency injection framework for Go.
 
 ## Features
 
-Needle uses Go generics for compile-time type safety (`Provide[T]`, `Invoke[T]`) and has zero external dependencies.
+Needle uses Go generics for compile-time type safety (`Register[T]`, `Invoke[T]`) and has zero external dependencies.
 
-It supports constructor auto-wiring, struct tag injection, multiple scopes (singleton, transient, request, pooled), and lifecycle hooks that run in dependency order. Services can start in parallel, be lazily initialized, or be replaced at runtime without restarting the container.
+A single `Register[T]` entry point takes a typed `Spec[T]` carrying provider, dependencies, scope, hooks, pool size, and lazy flag. Constructor helpers (`SpecFromConstructor`, `SpecFromStruct`, `SpecFromBinding`, `SpecValue`) cover auto-wiring, struct-tag injection, interface binding, and pre-built values. Lifecycle hooks run in dependency order, services can start in parallel, and any spec can be replaced at runtime.
 
-You can group providers into modules, bind interfaces to implementations, wrap services with decorators, and resolve optional dependencies with a built-in `Optional[T]` type. Health and readiness checks are supported out of the box.
+You can group specs into modules, attach decorators for cross-cutting concerns, and resolve optional dependencies with the built-in `Optional[T]` type. Health and readiness checks are supported out of the box.
 
 ## Installation
 
@@ -24,9 +24,11 @@ go get github.com/danpasecinic/needle
 ```go
 c := needle.New()
 
-needle.ProvideValue(c, &Config{Port: 8080})
-needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
-    return &Server{Config: needle.MustInvoke[*Config](c)}, nil
+needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
+needle.Register(c, needle.Spec[*Server]{
+    Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+        return &Server{Config: needle.MustInvoke[*Config](c)}, nil
+    },
 })
 
 server := needle.MustInvoke[*Server](c)
@@ -37,7 +39,7 @@ server := needle.MustInvoke[*Server](c)
 See the [examples](examples/) directory:
 
 - [basic](examples/basic/) - Simple dependency chain
-- [autowire](examples/autowire/) - Struct-based injection
+- [autowire](examples/autowire/) - Constructor and struct-tag injection
 - [httpserver](examples/httpserver/) - HTTP server with lifecycle
 - [modules](examples/modules/) - Modules and interface binding
 - [scopes](examples/scopes/) - Singleton, Transient, Request, Pooled
@@ -46,6 +48,40 @@ See the [examples](examples/) directory:
 - [healthchecks](examples/healthchecks/) - Liveness and readiness probes
 - [optional](examples/optional/) - Optional dependencies with fallbacks
 - [parallel](examples/parallel/) - Parallel startup/shutdown
+
+## The Spec Type
+
+Every registration goes through one type. The defaults (zero values) cover the common case: singleton scope, eager initialization, no hooks.
+
+```go
+type Spec[T any] struct {
+    Name         string         // optional, for named services
+    Provider     Provider[T]    // factory function (mutually exclusive with SpecValue)
+    Dependencies []string       // explicit dependency keys
+    Scope        Scope          // Singleton (default), Transient, Request, Pooled
+    OnStart      Hook           // lifecycle hook on container Start
+    OnStop      Hook            // lifecycle hook on container Stop
+    PoolSize    int             // pool size when Scope is Pooled
+    Lazy        bool            // defer instantiation until first Resolve
+}
+```
+
+Constructor helpers fill the spec for common patterns:
+
+```go
+needle.SpecValue(&Config{Port: 8080})                       // pre-built value
+needle.SpecFromConstructor[*Database](NewDatabase)          // auto-wire from func params
+needle.SpecFromStruct[*UserService]()                       // auto-wire from `needle:""` tags
+needle.SpecFromBinding[UserRepo, *PostgresRepo]()           // bind interface to impl
+```
+
+Each helper returns a `Spec[T]` that you can field-tweak or chain via `WithName`, `WithScope`, `WithLazy`, etc:
+
+```go
+needle.Register(c, needle.SpecFromConstructor[*Server](NewServer).
+    WithName("primary").
+    WithLazy())
+```
 
 ## Choosing a Scope
 
@@ -57,10 +93,10 @@ See the [examples](examples/) directory:
 | **Pooled** | Reusable instances from a fixed-size pool | Expensive-to-create, stateless-between-uses resources: gRPC connections, worker objects |
 
 ```go
-needle.Provide(c, NewService)                              // Singleton (default)
-needle.Provide(c, NewHandler, needle.WithScope(needle.Transient))
-needle.Provide(c, NewRequestLogger, needle.WithScope(needle.Request))
-needle.Provide(c, NewWorker, needle.WithPoolSize(10))      // Pooled with 10 slots
+needle.Register(c, needle.SpecFromConstructor[*Service](NewService))                                  // Singleton (default)
+needle.Register(c, needle.SpecFromConstructor[*Handler](NewHandler).WithScope(needle.Transient))      // Transient
+needle.Register(c, needle.SpecFromConstructor[*RequestLogger](NewRequestLogger).WithScope(needle.Request))
+needle.Register(c, needle.SpecFromConstructor[*Worker](NewWorker).WithPoolSize(10))                   // Pooled
 ```
 
 Pooled services must be released by the caller via `c.Release(key, instance)`. If the pool is full, the instance is dropped and a warning is logged.
@@ -70,28 +106,35 @@ Pooled services must be released by the caller via `c.Release(key, instance)`. I
 Replace services at runtime without restarting the container. Useful for feature flags, A/B testing, test doubles, or configuration updates.
 
 ```go
-// Replace with a new value
-needle.ReplaceValue(c, &Config{Port: 9090})
+needle.Replace(c, needle.SpecValue(&Config{Port: 9090}))
 
-// Replace with a new provider
-needle.Replace(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
-    return &Server{Config: needle.MustInvoke[*Config](c)}, nil
+needle.Replace(c, needle.Spec[*Server]{
+    Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+        return &Server{Config: needle.MustInvoke[*Config](c)}, nil
+    },
 })
 
-// Replace with auto-wired constructor
-needle.ReplaceFunc[*Service](c, NewService)
+needle.Replace(c, needle.SpecFromConstructor[*Service](NewService))
+needle.Replace(c, needle.SpecFromStruct[*Service]())
 
-// Replace with struct injection
-needle.ReplaceStruct[*Service](c)
-
-// Named variants
-needle.ReplaceNamedValue(c, "primary", &Config{Port: 5432})
-needle.ReplaceNamed(c, "primary", provider)
+needle.Replace(c, needle.SpecValue(&Config{Port: 5432}).WithName("primary"))
 ```
 
-All Replace functions accept the same options as Provide (`WithScope`, `WithOnStart`, `WithOnStop`, `WithLazy`, `WithPoolSize`). If the service does not exist yet, Replace creates it. If it does exist, the old entry is removed from both the registry and the dependency graph before re-registering.
+`Register` errors on a duplicate key. `Replace` overwrites if the key exists, or registers if it does not. The same `Spec[T]` type is the input to both -- only the intent differs. `MustRegister` and `MustReplace` panic on error.
 
-`Must` variants (`MustReplace`, `MustReplaceValue`, `MustReplaceFunc`, `MustReplaceStruct`) panic on error.
+## Multiple Hooks
+
+`Spec[T]` carries one `OnStart` and one `OnStop` Hook. Combine multiple hooks with `Compose`:
+
+```go
+needle.Register(c, needle.Spec[*Server]{
+    Provider: NewServer,
+    OnStart: needle.Compose(installRoutes, openListener),
+    OnStop:  needle.Compose(stopGracefully, flushLogs),
+})
+```
+
+`Compose` runs hooks in argument order and returns the first error.
 
 ## Benchmarks
 

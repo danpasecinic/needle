@@ -8,16 +8,30 @@ import (
 	"testing"
 )
 
+func registerProvider(c *Container, key string, fn ProviderFunc, deps []string) error {
+	return c.Register(NewServiceEntry(EntryConfig{
+		Key:          key,
+		Provider:     fn,
+		Dependencies: deps,
+	}))
+}
+
+func registerValue(c *Container, key string, v any) error {
+	return c.Register(NewServiceEntry(EntryConfig{
+		Key:      key,
+		Value:    v,
+		HasValue: true,
+	}))
+}
+
 func TestContainer_RegisterAndResolve(t *testing.T) {
 	t.Parallel()
 
 	c := New(&Config{})
 
-	err := c.Register(
-		"config", func(ctx context.Context, r Resolver) (any, error) {
-			return map[string]string{"port": "8080"}, nil
-		}, nil,
-	)
+	err := registerProvider(c, "config", func(ctx context.Context, r Resolver) (any, error) {
+		return map[string]string{"port": "8080"}, nil
+	}, nil)
 	if err != nil {
 		t.Fatalf("failed to register: %v", err)
 	}
@@ -44,7 +58,7 @@ func TestContainer_RegisterValue(t *testing.T) {
 	c := New(&Config{})
 
 	value := "test-value"
-	err := c.RegisterValue("myvalue", value)
+	err := registerValue(c, "myvalue", value)
 	if err != nil {
 		t.Fatalf("failed to register value: %v", err)
 	}
@@ -65,20 +79,18 @@ func TestContainer_DependencyResolution(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := c.RegisterValue("config", map[string]string{"db": "postgres"})
+	err := registerValue(c, "config", map[string]string{"db": "postgres"})
 	if err != nil {
 		t.Fatalf("failed to register config: %v", err)
 	}
 
-	err = c.Register(
-		"database", func(ctx context.Context, r Resolver) (any, error) {
-			cfg, err := r.Resolve(ctx, "config")
-			if err != nil {
-				return nil, err
-			}
-			return "connected to " + cfg.(map[string]string)["db"], nil
-		}, []string{"config"},
-	)
+	err = registerProvider(c, "database", func(ctx context.Context, r Resolver) (any, error) {
+		cfg, err := r.Resolve(ctx, "config")
+		if err != nil {
+			return nil, err
+		}
+		return "connected to " + cfg.(map[string]string)["db"], nil
+	}, []string{"config"})
 	if err != nil {
 		t.Fatalf("failed to register database: %v", err)
 	}
@@ -99,12 +111,12 @@ func TestContainer_DuplicateRegistration(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := c.RegisterValue("test", "value1")
+	err := registerValue(c, "test", "value1")
 	if err != nil {
 		t.Fatalf("first registration failed: %v", err)
 	}
 
-	err = c.RegisterValue("test", "value2")
+	err = registerValue(c, "test", "value2")
 	if err == nil {
 		t.Error("expected error for duplicate registration")
 	}
@@ -115,20 +127,16 @@ func TestContainer_CircularDependency(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := c.Register(
-		"A", func(ctx context.Context, r Resolver) (any, error) {
-			return "A", nil
-		}, []string{"B"},
-	)
+	err := registerProvider(c, "A", func(ctx context.Context, r Resolver) (any, error) {
+		return "A", nil
+	}, []string{"B"})
 	if err != nil {
 		t.Fatalf("failed to register A: %v", err)
 	}
 
-	err = c.Register(
-		"B", func(ctx context.Context, r Resolver) (any, error) {
-			return "B", nil
-		}, []string{"A"},
-	)
+	err = registerProvider(c, "B", func(ctx context.Context, r Resolver) (any, error) {
+		return "B", nil
+	}, []string{"A"})
 	if err == nil {
 		t.Error("expected error for circular dependency")
 	}
@@ -139,12 +147,10 @@ func TestContainer_MissingDependency(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := c.Register(
-		"service", func(ctx context.Context, r Resolver) (any, error) {
-			_, err := r.Resolve(ctx, "missing")
-			return nil, err
-		}, []string{"missing"},
-	)
+	err := registerProvider(c, "service", func(ctx context.Context, r Resolver) (any, error) {
+		_, err := r.Resolve(ctx, "missing")
+		return nil, err
+	}, []string{"missing"})
 	if err != nil {
 		t.Fatalf("registration should succeed: %v", err)
 	}
@@ -162,11 +168,9 @@ func TestContainer_ProviderError(t *testing.T) {
 	c := New(&Config{})
 
 	expectedErr := errors.New("provider failed")
-	err := c.Register(
-		"failing", func(ctx context.Context, r Resolver) (any, error) {
-			return nil, expectedErr
-		}, nil,
-	)
+	err := registerProvider(c, "failing", func(ctx context.Context, r Resolver) (any, error) {
+		return nil, expectedErr
+	}, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %v", err)
 	}
@@ -184,12 +188,10 @@ func TestContainer_Singleton(t *testing.T) {
 	c := New(&Config{})
 
 	callCount := 0
-	err := c.Register(
-		"counter", func(ctx context.Context, r Resolver) (any, error) {
-			callCount++
-			return callCount, nil
-		}, nil,
-	)
+	err := registerProvider(c, "counter", func(ctx context.Context, r Resolver) (any, error) {
+		callCount++
+		return callCount, nil
+	}, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %v", err)
 	}
@@ -217,7 +219,7 @@ func TestContainer_Has(t *testing.T) {
 		t.Error("should not have unregistered service")
 	}
 
-	_ = c.RegisterValue("test", "value")
+	_ = registerValue(c, "test", "value")
 
 	if !c.Has("test") {
 		t.Error("should have registered service")
@@ -229,9 +231,9 @@ func TestContainer_Keys(t *testing.T) {
 
 	c := New(&Config{})
 
-	_ = c.RegisterValue("a", 1)
-	_ = c.RegisterValue("b", 2)
-	_ = c.RegisterValue("c", 3)
+	_ = registerValue(c, "a", 1)
+	_ = registerValue(c, "b", 2)
+	_ = registerValue(c, "c", 3)
 
 	keys := c.Keys()
 	if len(keys) != 3 {
@@ -248,8 +250,8 @@ func TestContainer_Size(t *testing.T) {
 		t.Error("empty container should have size 0")
 	}
 
-	_ = c.RegisterValue("a", 1)
-	_ = c.RegisterValue("b", 2)
+	_ = registerValue(c, "a", 1)
+	_ = registerValue(c, "b", 2)
 
 	if c.Size() != 2 {
 		t.Errorf("expected size 2, got %d", c.Size())
@@ -261,12 +263,10 @@ func TestContainer_Validate(t *testing.T) {
 
 	c := New(&Config{})
 
-	_ = c.RegisterValue("config", "config")
-	_ = c.Register(
-		"service", func(ctx context.Context, r Resolver) (any, error) {
-			return "service", nil
-		}, []string{"config"},
-	)
+	_ = registerValue(c, "config", "config")
+	_ = registerProvider(c, "service", func(ctx context.Context, r Resolver) (any, error) {
+		return "service", nil
+	}, []string{"config"})
 
 	err := c.Validate()
 	if err != nil {
@@ -279,16 +279,14 @@ func TestContainer_ContextCancellation(t *testing.T) {
 
 	c := New(&Config{})
 
-	_ = c.Register(
-		"slow", func(ctx context.Context, r Resolver) (any, error) {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-				return "done", nil
-			}
-		}, nil,
-	)
+	_ = registerProvider(c, "slow", func(ctx context.Context, r Resolver) (any, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return "done", nil
+		}
+	}, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -304,8 +302,8 @@ func TestContainer_ConcurrentResolve_NoFalseCycle(t *testing.T) {
 
 	c := New(&Config{})
 
-	_ = c.RegisterValue("dep", "dependency")
-	_ = c.Register("svc", func(ctx context.Context, r Resolver) (any, error) {
+	_ = registerValue(c, "dep", "dependency")
+	_ = registerProvider(c, "svc", func(ctx context.Context, r Resolver) (any, error) {
 		_, _ = r.Resolve(ctx, "dep")
 		return "service", nil
 	}, []string{"dep"})
@@ -338,7 +336,7 @@ func TestContainer_SingletonCalledOnce(t *testing.T) {
 	c := New(&Config{})
 
 	var callCount atomic.Int64
-	_ = c.Register("singleton", func(ctx context.Context, r Resolver) (any, error) {
+	_ = registerProvider(c, "singleton", func(ctx context.Context, r Resolver) (any, error) {
 		callCount.Add(1)
 		return "instance", nil
 	}, nil)
@@ -362,13 +360,11 @@ func TestContainer_SingletonCalledOnce(t *testing.T) {
 func BenchmarkContainer_Resolve(b *testing.B) {
 	c := New(&Config{})
 
-	_ = c.RegisterValue("config", map[string]string{"key": "value"})
-	_ = c.Register(
-		"service", func(ctx context.Context, r Resolver) (any, error) {
-			_, _ = r.Resolve(ctx, "config")
-			return "service", nil
-		}, []string{"config"},
-	)
+	_ = registerValue(c, "config", map[string]string{"key": "value"})
+	_ = registerProvider(c, "service", func(ctx context.Context, r Resolver) (any, error) {
+		_, _ = r.Resolve(ctx, "config")
+		return "service", nil
+	}, []string{"config"})
 
 	ctx := context.Background()
 	_, _ = c.Resolve(ctx, "service")
@@ -384,6 +380,6 @@ func BenchmarkContainer_Register(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		c := New(&Config{})
-		_ = c.RegisterValue("test", "value")
+		_ = registerValue(c, "test", "value")
 	}
 }

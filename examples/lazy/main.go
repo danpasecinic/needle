@@ -39,42 +39,34 @@ func (s *EagerService) DoWork() {
 func main() {
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*EagerService, error) {
+	_ = needle.Register(c, needle.Spec[*EagerService]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*EagerService, error) {
 			return NewEagerService("EagerService"), nil
 		},
-		needle.WithOnStart(
-			func(_ context.Context) error {
-				fmt.Println("[lifecycle] EagerService OnStart hook running")
-				return nil
-			},
-		),
-		needle.WithOnStop(
-			func(_ context.Context) error {
-				fmt.Println("[lifecycle] EagerService OnStop hook running")
-				return nil
-			},
-		),
-	)
+		OnStart: func(_ context.Context) error {
+			fmt.Println("[lifecycle] EagerService OnStart hook running")
+			return nil
+		},
+		OnStop: func(_ context.Context) error {
+			fmt.Println("[lifecycle] EagerService OnStop hook running")
+			return nil
+		},
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*ExpensiveService, error) {
+	_ = needle.Register(c, needle.Spec[*ExpensiveService]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*ExpensiveService, error) {
 			return NewExpensiveService("LazyExpensiveService"), nil
 		},
-		needle.WithLazy(),
-		needle.WithOnStart(
-			func(_ context.Context) error {
-				fmt.Println("[lifecycle] LazyExpensiveService OnStart hook running")
-				return nil
-			},
-		),
-		needle.WithOnStop(
-			func(_ context.Context) error {
-				fmt.Println("[lifecycle] LazyExpensiveService OnStop hook running")
-				return nil
-			},
-		),
-	)
+		Lazy: true,
+		OnStart: func(_ context.Context) error {
+			fmt.Println("[lifecycle] LazyExpensiveService OnStart hook running")
+			return nil
+		},
+		OnStop: func(_ context.Context) error {
+			fmt.Println("[lifecycle] LazyExpensiveService OnStop hook running")
+			return nil
+		},
+	})
 
 	fmt.Println("=== Starting container ===")
 	ctx := context.Background()

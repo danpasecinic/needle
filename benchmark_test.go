@@ -138,19 +138,18 @@ func benchmarkStartup(b *testing.B, parallel bool, count int, workDuration time.
 		for j := 0; j < count; j++ {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = ProvideNamed(
-				c, key, func(ctx context.Context, r Resolver) (*benchService, error) {
+			_ = Register(c, Spec[*benchService]{
+				Name: key,
+				Provider: func(ctx context.Context, r Resolver) (*benchService, error) {
 					return &benchService{id: idx}, nil
 				},
-				WithOnStart(
-					func(ctx context.Context) error {
-						if workDuration > 0 {
-							time.Sleep(workDuration)
-						}
-						return nil
-					},
-				),
-			)
+				OnStart: func(ctx context.Context) error {
+					if workDuration > 0 {
+						time.Sleep(workDuration)
+					}
+					return nil
+				},
+			})
 		}
 
 		ctx := context.Background()
@@ -176,19 +175,18 @@ func benchmarkShutdown(b *testing.B, parallel bool, count int, workDuration time
 		for j := 0; j < count; j++ {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = ProvideNamed(
-				c, key, func(ctx context.Context, r Resolver) (*benchService, error) {
+			_ = Register(c, Spec[*benchService]{
+				Name: key,
+				Provider: func(ctx context.Context, r Resolver) (*benchService, error) {
 					return &benchService{id: idx}, nil
 				},
-				WithOnStop(
-					func(ctx context.Context) error {
-						if workDuration > 0 {
-							time.Sleep(workDuration)
-						}
-						return nil
-					},
-				),
-			)
+				OnStop: func(ctx context.Context) error {
+					if workDuration > 0 {
+						time.Sleep(workDuration)
+					}
+					return nil
+				},
+			})
 		}
 
 		ctx := context.Background()
@@ -223,28 +221,25 @@ func benchmarkDependencyChain(b *testing.B, parallel bool, depth int, workDurati
 				deps = append(deps, prevKey)
 			}
 
-			_ = ProvideNamed(
-				c, key, func(ctx context.Context, r Resolver) (*chainService, error) {
+			_ = Register(c, Spec[*chainService]{
+				Name: key,
+				Provider: func(ctx context.Context, r Resolver) (*chainService, error) {
 					return &chainService{level: level}, nil
 				},
-				WithDependencies(deps...),
-				WithOnStart(
-					func(ctx context.Context) error {
-						if workDuration > 0 {
-							time.Sleep(workDuration)
-						}
-						return nil
-					},
-				),
-				WithOnStop(
-					func(ctx context.Context) error {
-						if workDuration > 0 {
-							time.Sleep(workDuration)
-						}
-						return nil
-					},
-				),
-			)
+				Dependencies: deps,
+				OnStart: func(ctx context.Context) error {
+					if workDuration > 0 {
+						time.Sleep(workDuration)
+					}
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					if workDuration > 0 {
+						time.Sleep(workDuration)
+					}
+					return nil
+				},
+			})
 			prevKey = key
 		}
 
@@ -279,51 +274,45 @@ func benchmarkWideDependencies(b *testing.B, parallel bool, width int, workDurat
 			key := fmt.Sprintf("wide_%d", j)
 			depKeys[j] = key
 
-			_ = ProvideNamed(
-				c, key, func(ctx context.Context, r Resolver) (*wideService, error) {
+			_ = Register(c, Spec[*wideService]{
+				Name: key,
+				Provider: func(ctx context.Context, r Resolver) (*wideService, error) {
 					return &wideService{id: idx}, nil
 				},
-				WithOnStart(
-					func(ctx context.Context) error {
-						if workDuration > 0 {
-							time.Sleep(workDuration)
-						}
-						return nil
-					},
-				),
-				WithOnStop(
-					func(ctx context.Context) error {
-						if workDuration > 0 {
-							time.Sleep(workDuration)
-						}
-						return nil
-					},
-				),
-			)
+				OnStart: func(ctx context.Context) error {
+					if workDuration > 0 {
+						time.Sleep(workDuration)
+					}
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					if workDuration > 0 {
+						time.Sleep(workDuration)
+					}
+					return nil
+				},
+			})
 		}
 
-		_ = ProvideNamed(
-			c, "aggregator", func(ctx context.Context, r Resolver) (*aggregatorService, error) {
+		_ = Register(c, Spec[*aggregatorService]{
+			Name: "aggregator",
+			Provider: func(ctx context.Context, r Resolver) (*aggregatorService, error) {
 				return &aggregatorService{}, nil
 			},
-			WithDependencies(depKeys...),
-			WithOnStart(
-				func(ctx context.Context) error {
-					if workDuration > 0 {
-						time.Sleep(workDuration)
-					}
-					return nil
-				},
-			),
-			WithOnStop(
-				func(ctx context.Context) error {
-					if workDuration > 0 {
-						time.Sleep(workDuration)
-					}
-					return nil
-				},
-			),
-		)
+			Dependencies: depKeys,
+			OnStart: func(ctx context.Context) error {
+				if workDuration > 0 {
+					time.Sleep(workDuration)
+				}
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				if workDuration > 0 {
+					time.Sleep(workDuration)
+				}
+				return nil
+			},
+		})
 
 		ctx := context.Background()
 		b.StartTimer()

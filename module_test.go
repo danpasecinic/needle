@@ -32,14 +32,16 @@ func TestModuleBasic(t *testing.T) {
 	}
 }
 
-func TestModuleProvide(t *testing.T) {
+func TestModuleRegister(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
 	module := needle.NewModule("config")
-	needle.ModuleProvide(module, func(ctx context.Context, r needle.Resolver) (*Config, error) {
-		return &Config{Port: 9000, Host: "module.local"}, nil
+	needle.ModuleRegister(module, needle.Spec[*Config]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			return &Config{Port: 9000, Host: "module.local"}, nil
+		},
 	})
 
 	err := c.Apply(module)
@@ -57,14 +59,14 @@ func TestModuleProvide(t *testing.T) {
 	}
 }
 
-func TestModuleProvideValue(t *testing.T) {
+func TestModuleRegisterValue(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
 	config := &Config{Port: 7000}
 	module := needle.NewModule("values")
-	needle.ModuleProvideValue(module, config)
+	needle.ModuleRegister(module, needle.SpecValue(config))
 
 	err := c.Apply(module)
 	if err != nil {
@@ -87,12 +89,14 @@ func TestModuleInclude(t *testing.T) {
 	c := needle.New()
 
 	configModule := needle.NewModule("config")
-	needle.ModuleProvideValue(configModule, &Config{Port: 5000})
+	needle.ModuleRegister(configModule, needle.SpecValue(&Config{Port: 5000}))
 
 	dbModule := needle.NewModule("db")
-	needle.ModuleProvide(dbModule, func(ctx context.Context, r needle.Resolver) (*Database, error) {
-		cfg := needle.MustInvoke[*Config](c)
-		return &Database{Config: cfg, Name: "testdb"}, nil
+	needle.ModuleRegister(dbModule, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+			cfg := needle.MustInvoke[*Config](c)
+			return &Database{Config: cfg, Name: "testdb"}, nil
+		},
 	})
 
 	appModule := needle.NewModule("app").
@@ -114,18 +118,20 @@ func TestModuleInclude(t *testing.T) {
 	}
 }
 
-func TestModuleBind(t *testing.T) {
+func TestModuleBinding(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
 	module := needle.NewModule("repos")
-	needle.ModuleProvideValue(module, &Database{Name: "postgres"})
-	needle.ModuleProvide(module, func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
-		db := needle.MustInvoke[*Database](c)
-		return &PostgresUserRepo{DB: db}, nil
+	needle.ModuleRegister(module, needle.SpecValue(&Database{Name: "postgres"}))
+	needle.ModuleRegister(module, needle.Spec[*PostgresUserRepo]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
+			db := needle.MustInvoke[*Database](c)
+			return &PostgresUserRepo{DB: db}, nil
+		},
 	})
-	needle.ModuleBind[UserRepository, *PostgresUserRepo](module)
+	needle.ModuleRegister(module, needle.SpecFromBinding[UserRepository, *PostgresUserRepo]())
 
 	err := c.Apply(module)
 	if err != nil {
@@ -149,8 +155,10 @@ func TestModuleDecorate(t *testing.T) {
 	c := needle.New()
 
 	module := needle.NewModule("logging")
-	needle.ModuleProvide(module, func(ctx context.Context, r needle.Resolver) (*Logger, error) {
-		return &Logger{Prefix: "app"}, nil
+	needle.ModuleRegister(module, needle.Spec[*Logger]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+			return &Logger{Prefix: "app"}, nil
+		},
 	})
 	needle.ModuleDecorate(module, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
 		base.Prefix = "[" + base.Prefix + "]"
@@ -172,25 +180,27 @@ func TestModuleDecorate(t *testing.T) {
 	}
 }
 
-func TestBind(t *testing.T) {
+func TestSpecFromBinding(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
-	err := needle.ProvideValue(c, &Database{Name: "main"})
+	err := needle.Register(c, needle.SpecValue(&Database{Name: "main"}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
-	err = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
-		db := needle.MustInvoke[*Database](c)
-		return &PostgresUserRepo{DB: db}, nil
+	err = needle.Register(c, needle.Spec[*PostgresUserRepo]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
+			db := needle.MustInvoke[*Database](c)
+			return &PostgresUserRepo{DB: db}, nil
+		},
 	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
-	err = needle.Bind[UserRepository, *PostgresUserRepo](c)
+	err = needle.Register(c, needle.SpecFromBinding[UserRepository, *PostgresUserRepo]())
 	if err != nil {
 		t.Fatalf("Bind failed: %v", err)
 	}
@@ -205,27 +215,29 @@ func TestBind(t *testing.T) {
 	}
 }
 
-func TestBindNamed(t *testing.T) {
+func TestSpecFromBindingNamed(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
-	err := needle.ProvideValue(c, &Database{Name: "named-db"})
+	err := needle.Register(c, needle.SpecValue(&Database{Name: "named-db"}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
-	err = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
-		db := needle.MustInvoke[*Database](c)
-		return &PostgresUserRepo{DB: db}, nil
+	err = needle.Register(c, needle.Spec[*PostgresUserRepo]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
+			db := needle.MustInvoke[*Database](c)
+			return &PostgresUserRepo{DB: db}, nil
+		},
 	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
-	err = needle.BindNamed[UserRepository, *PostgresUserRepo](c, "users")
+	err = needle.Register(c, needle.SpecFromBinding[UserRepository, *PostgresUserRepo]().WithName("users"))
 	if err != nil {
-		t.Fatalf("BindNamed failed: %v", err)
+		t.Fatalf("Register binding failed: %v", err)
 	}
 
 	repo, err := needle.InvokeNamed[UserRepository](c, "users")
@@ -243,11 +255,13 @@ func TestDecorate(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Logger, error) {
-		return &Logger{Prefix: "base"}, nil
+	err := needle.Register(c, needle.Spec[*Logger]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+			return &Logger{Prefix: "base"}, nil
+		},
 	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
@@ -270,11 +284,13 @@ func TestDecorateChain(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Logger, error) {
-		return &Logger{Prefix: "core"}, nil
+	err := needle.Register(c, needle.Spec[*Logger]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+			return &Logger{Prefix: "core"}, nil
+		},
 	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
@@ -302,11 +318,14 @@ func TestDecorateNamed(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.ProvideNamed(c, "app", func(ctx context.Context, r needle.Resolver) (*Logger, error) {
-		return &Logger{Prefix: "app"}, nil
+	err := needle.Register(c, needle.Spec[*Logger]{
+		Name: "app",
+		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+			return &Logger{Prefix: "app"}, nil
+		},
 	})
 	if err != nil {
-		t.Fatalf("ProvideNamed failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	needle.DecorateNamed(c, "app", func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
@@ -330,12 +349,14 @@ func TestMultipleModules(t *testing.T) {
 	c := needle.New()
 
 	configModule := needle.NewModule("config")
-	needle.ModuleProvideValue(configModule, &Config{Port: 8080})
+	needle.ModuleRegister(configModule, needle.SpecValue(&Config{Port: 8080}))
 
 	dbModule := needle.NewModule("db")
-	needle.ModuleProvide(dbModule, func(ctx context.Context, r needle.Resolver) (*Database, error) {
-		cfg := needle.MustInvoke[*Config](c)
-		return &Database{Config: cfg, Name: "app-db"}, nil
+	needle.ModuleRegister(dbModule, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+			cfg := needle.MustInvoke[*Config](c)
+			return &Database{Config: cfg, Name: "app-db"}, nil
+		},
 	})
 
 	err := c.Apply(configModule, dbModule)

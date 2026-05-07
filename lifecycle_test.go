@@ -18,25 +18,21 @@ func TestContainer_StartStop(t *testing.T) {
 
 	var startCount, stopCount atomic.Int32
 
-	err := Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	err := Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
-		WithOnStart(
-			func(ctx context.Context) error {
-				startCount.Add(1)
-				return nil
-			},
-		),
-		WithOnStop(
-			func(ctx context.Context) error {
-				stopCount.Add(1)
-				return nil
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			startCount.Add(1)
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			stopCount.Add(1)
+			return nil
+		},
+	})
 	if err != nil {
-		t.Fatalf("failed to provide: %v", err)
+		t.Fatalf("failed to register: %v", err)
 	}
 
 	ctx := context.Background()
@@ -65,43 +61,36 @@ func TestContainer_StartOrder(t *testing.T) {
 
 	var order []string
 
-	_ = ProvideValue(
-		c, &testConfig{value: "config"},
-		WithOnStart(
-			func(ctx context.Context) error {
-				order = append(order, "config")
-				return nil
-			},
-		),
-	)
+	_ = Register(c, SpecValue(&testConfig{value: "config"}).WithOnStart(
+		func(ctx context.Context) error {
+			order = append(order, "config")
+			return nil
+		},
+	))
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+	_ = Register(c, Spec[*testDatabase]{
+		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testConfig]()),
-		WithOnStart(
-			func(ctx context.Context) error {
-				order = append(order, "database")
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testConfig]()},
+		OnStart: func(ctx context.Context) error {
+			order = append(order, "database")
+			return nil
+		},
+	})
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+	_ = Register(c, Spec[*testServer]{
+		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testDatabase]()),
-		WithOnStart(
-			func(ctx context.Context) error {
-				order = append(order, "server")
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testDatabase]()},
+		OnStart: func(ctx context.Context) error {
+			order = append(order, "server")
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	if err := c.Start(ctx); err != nil {
@@ -128,43 +117,36 @@ func TestContainer_StopOrder(t *testing.T) {
 
 	var order []string
 
-	_ = ProvideValue(
-		c, &testConfig{value: "config"},
-		WithOnStop(
-			func(ctx context.Context) error {
-				order = append(order, "config")
-				return nil
-			},
-		),
-	)
+	_ = Register(c, SpecValue(&testConfig{value: "config"}).WithOnStop(
+		func(ctx context.Context) error {
+			order = append(order, "config")
+			return nil
+		},
+	))
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+	_ = Register(c, Spec[*testDatabase]{
+		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testConfig]()),
-		WithOnStop(
-			func(ctx context.Context) error {
-				order = append(order, "database")
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testConfig]()},
+		OnStop: func(ctx context.Context) error {
+			order = append(order, "database")
+			return nil
+		},
+	})
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+	_ = Register(c, Spec[*testServer]{
+		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testDatabase]()),
-		WithOnStop(
-			func(ctx context.Context) error {
-				order = append(order, "server")
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testDatabase]()},
+		OnStop: func(ctx context.Context) error {
+			order = append(order, "server")
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -191,16 +173,14 @@ func TestContainer_StartError(t *testing.T) {
 
 	expectedErr := errors.New("start failed")
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
-		WithOnStart(
-			func(ctx context.Context) error {
-				return expectedErr
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			return expectedErr
+		},
+	})
 
 	ctx := context.Background()
 	err := c.Start(ctx)
@@ -220,16 +200,14 @@ func TestContainer_StopError(t *testing.T) {
 
 	expectedErr := errors.New("stop failed")
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
-		WithOnStop(
-			func(ctx context.Context) error {
-				return expectedErr
-			},
-		),
-	)
+		OnStop: func(ctx context.Context) error {
+			return expectedErr
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -240,48 +218,44 @@ func TestContainer_StopError(t *testing.T) {
 	}
 }
 
-func TestContainer_MultipleHooks(t *testing.T) {
+func TestContainer_ComposedHooks(t *testing.T) {
 	t.Parallel()
 
 	c := New()
 
 	var order []string
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
-		WithOnStart(
+		OnStart: Compose(
 			func(ctx context.Context) error {
 				order = append(order, "start1")
 				return nil
 			},
-		),
-		WithOnStart(
 			func(ctx context.Context) error {
 				order = append(order, "start2")
 				return nil
 			},
 		),
-		WithOnStop(
+		OnStop: Compose(
 			func(ctx context.Context) error {
 				order = append(order, "stop1")
 				return nil
 			},
-		),
-		WithOnStop(
 			func(ctx context.Context) error {
 				order = append(order, "stop2")
 				return nil
 			},
 		),
-	)
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
 	_ = c.Stop(ctx)
 
-	expected := []string{"start1", "start2", "stop2", "stop1"}
+	expected := []string{"start1", "start2", "stop1", "stop2"}
 	if len(order) != len(expected) {
 		t.Fatalf("expected %d items, got %d", len(expected), len(order))
 	}
@@ -299,23 +273,19 @@ func TestContainer_Run(t *testing.T) {
 
 	var started, stopped atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
-		WithOnStart(
-			func(ctx context.Context) error {
-				started.Store(true)
-				return nil
-			},
-		),
-		WithOnStop(
-			func(ctx context.Context) error {
-				stopped.Store(true)
-				return nil
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			started.Store(true)
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			stopped.Store(true)
+			return nil
+		},
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -338,7 +308,7 @@ func TestContainer_DoubleStart(t *testing.T) {
 
 	c := New()
 
-	_ = ProvideValue(c, &testConfig{value: "config"})
+	_ = Register(c, SpecValue(&testConfig{value: "config"}))
 
 	ctx := context.Background()
 	if err := c.Start(ctx); err != nil {
@@ -358,7 +328,7 @@ func TestContainer_StopWithoutStart(t *testing.T) {
 
 	c := New()
 
-	_ = ProvideValue(c, &testConfig{value: "config"})
+	_ = Register(c, SpecValue(&testConfig{value: "config"}))
 
 	ctx := context.Background()
 	err := c.Stop(ctx)
@@ -386,19 +356,17 @@ func TestContainer_LazyProvider(t *testing.T) {
 
 	var instantiated, started atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			instantiated.Store(true)
 			return &testService{name: "lazy"}, nil
 		},
-		WithLazy(),
-		WithOnStart(
-			func(ctx context.Context) error {
-				started.Store(true)
-				return nil
-			},
-		),
-	)
+		Lazy: true,
+		OnStart: func(ctx context.Context) error {
+			started.Store(true)
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	if err := c.Start(ctx); err != nil {
@@ -434,18 +402,16 @@ func TestContainer_LazyProviderOnStartRunsOnce(t *testing.T) {
 
 	var startCount atomic.Int32
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
-		WithLazy(),
-		WithOnStart(
-			func(ctx context.Context) error {
-				startCount.Add(1)
-				return nil
-			},
-		),
-	)
+		Lazy: true,
+		OnStart: func(ctx context.Context) error {
+			startCount.Add(1)
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -468,18 +434,16 @@ func TestContainer_LazyProviderStopHook(t *testing.T) {
 
 	var stopped atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
-		WithLazy(),
-		WithOnStop(
-			func(ctx context.Context) error {
-				stopped.Store(true)
-				return nil
-			},
-		),
-	)
+		Lazy: true,
+		OnStop: func(ctx context.Context) error {
+			stopped.Store(true)
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -498,18 +462,16 @@ func TestContainer_LazyProviderNotInstantiatedNoStop(t *testing.T) {
 
 	var stopped atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
-		WithLazy(),
-		WithOnStop(
-			func(ctx context.Context) error {
-				stopped.Store(true)
-				return nil
-			},
-		),
-	)
+		Lazy: true,
+		OnStop: func(ctx context.Context) error {
+			stopped.Store(true)
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -527,18 +489,16 @@ func TestContainer_LazyProviderBeforeStart(t *testing.T) {
 
 	var started atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
-		WithLazy(),
-		WithOnStart(
-			func(ctx context.Context) error {
-				started.Store(true)
-				return nil
-			},
-		),
-	)
+		Lazy: true,
+		OnStart: func(ctx context.Context) error {
+			started.Store(true)
+			return nil
+		},
+	})
 
 	_, err := Invoke[*testService](c)
 	if err != nil {
@@ -564,22 +524,20 @@ func TestContainer_ShutdownTimeout(t *testing.T) {
 
 	var stopped atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "slow"}, nil
 		},
-		WithOnStop(
-			func(ctx context.Context) error {
-				select {
-				case <-time.After(500 * time.Millisecond):
-					stopped.Store(true)
-					return nil
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			},
-		),
-	)
+		OnStop: func(ctx context.Context) error {
+			select {
+			case <-time.After(500 * time.Millisecond):
+				stopped.Store(true)
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -601,17 +559,15 @@ func TestContainer_ShutdownTimeoutNotSet(t *testing.T) {
 
 	var stopped atomic.Bool
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testService, error) {
+	_ = Register(c, Spec[*testService]{
+		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
-		WithOnStop(
-			func(ctx context.Context) error {
-				stopped.Store(true)
-				return nil
-			},
-		),
-	)
+		OnStop: func(ctx context.Context) error {
+			stopped.Store(true)
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -634,50 +590,43 @@ func TestContainer_ParallelStartup(t *testing.T) {
 	var order []string
 	var mu sync.Mutex
 
-	_ = ProvideValue(
-		c, &testConfig{value: "config"},
-		WithOnStart(
-			func(ctx context.Context) error {
-				time.Sleep(10 * time.Millisecond)
-				mu.Lock()
-				order = append(order, "config")
-				mu.Unlock()
-				return nil
-			},
-		),
-	)
+	_ = Register(c, SpecValue(&testConfig{value: "config"}).WithOnStart(
+		func(ctx context.Context) error {
+			time.Sleep(10 * time.Millisecond)
+			mu.Lock()
+			order = append(order, "config")
+			mu.Unlock()
+			return nil
+		},
+	))
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+	_ = Register(c, Spec[*testDatabase]{
+		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testConfig]()),
-		WithOnStart(
-			func(ctx context.Context) error {
-				mu.Lock()
-				order = append(order, "database")
-				mu.Unlock()
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testConfig]()},
+		OnStart: func(ctx context.Context) error {
+			mu.Lock()
+			order = append(order, "database")
+			mu.Unlock()
+			return nil
+		},
+	})
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+	_ = Register(c, Spec[*testServer]{
+		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testDatabase]()),
-		WithOnStart(
-			func(ctx context.Context) error {
-				mu.Lock()
-				order = append(order, "server")
-				mu.Unlock()
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testDatabase]()},
+		OnStart: func(ctx context.Context) error {
+			mu.Lock()
+			order = append(order, "server")
+			mu.Unlock()
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	if err := c.Start(ctx); err != nil {
@@ -704,50 +653,44 @@ func TestContainer_ParallelStartupIndependent(t *testing.T) {
 	var mu sync.Mutex
 	startTime := time.Now()
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testConfig, error) {
+	_ = Register(c, Spec[*testConfig]{
+		Provider: func(ctx context.Context, r Resolver) (*testConfig, error) {
 			return &testConfig{value: "a"}, nil
 		},
-		WithOnStart(
-			func(ctx context.Context) error {
-				mu.Lock()
-				startTimes = append(startTimes, time.Now())
-				mu.Unlock()
-				time.Sleep(50 * time.Millisecond)
-				return nil
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			mu.Lock()
+			startTimes = append(startTimes, time.Now())
+			mu.Unlock()
+			time.Sleep(50 * time.Millisecond)
+			return nil
+		},
+	})
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+	_ = Register(c, Spec[*testDatabase]{
+		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
 			return &testDatabase{}, nil
 		},
-		WithOnStart(
-			func(ctx context.Context) error {
-				mu.Lock()
-				startTimes = append(startTimes, time.Now())
-				mu.Unlock()
-				time.Sleep(50 * time.Millisecond)
-				return nil
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			mu.Lock()
+			startTimes = append(startTimes, time.Now())
+			mu.Unlock()
+			time.Sleep(50 * time.Millisecond)
+			return nil
+		},
+	})
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+	_ = Register(c, Spec[*testServer]{
+		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
 			return &testServer{}, nil
 		},
-		WithOnStart(
-			func(ctx context.Context) error {
-				mu.Lock()
-				startTimes = append(startTimes, time.Now())
-				mu.Unlock()
-				time.Sleep(50 * time.Millisecond)
-				return nil
-			},
-		),
-	)
+		OnStart: func(ctx context.Context) error {
+			mu.Lock()
+			startTimes = append(startTimes, time.Now())
+			mu.Unlock()
+			time.Sleep(50 * time.Millisecond)
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	if err := c.Start(ctx); err != nil {
@@ -776,49 +719,42 @@ func TestContainer_ParallelShutdown(t *testing.T) {
 	var stopOrder []string
 	var mu sync.Mutex
 
-	_ = ProvideValue(
-		c, &testConfig{value: "config"},
-		WithOnStop(
-			func(ctx context.Context) error {
-				mu.Lock()
-				stopOrder = append(stopOrder, "config")
-				mu.Unlock()
-				return nil
-			},
-		),
-	)
+	_ = Register(c, SpecValue(&testConfig{value: "config"}).WithOnStop(
+		func(ctx context.Context) error {
+			mu.Lock()
+			stopOrder = append(stopOrder, "config")
+			mu.Unlock()
+			return nil
+		},
+	))
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testDatabase, error) {
+	_ = Register(c, Spec[*testDatabase]{
+		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testConfig]()),
-		WithOnStop(
-			func(ctx context.Context) error {
-				mu.Lock()
-				stopOrder = append(stopOrder, "database")
-				mu.Unlock()
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testConfig]()},
+		OnStop: func(ctx context.Context) error {
+			mu.Lock()
+			stopOrder = append(stopOrder, "database")
+			mu.Unlock()
+			return nil
+		},
+	})
 
-	_ = Provide(
-		c, func(ctx context.Context, r Resolver) (*testServer, error) {
+	_ = Register(c, Spec[*testServer]{
+		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
-		WithDependencies(reflect.TypeKey[*testDatabase]()),
-		WithOnStop(
-			func(ctx context.Context) error {
-				mu.Lock()
-				stopOrder = append(stopOrder, "server")
-				mu.Unlock()
-				return nil
-			},
-		),
-	)
+		Dependencies: []string{reflect.TypeKey[*testDatabase]()},
+		OnStop: func(ctx context.Context) error {
+			mu.Lock()
+			stopOrder = append(stopOrder, "server")
+			mu.Unlock()
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)

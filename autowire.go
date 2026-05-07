@@ -15,6 +15,10 @@ func InvokeStruct[T any](c *Container) (T, error) {
 }
 
 func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
+	return resolveStruct[T](ctx, c.resolver)
+}
+
+func resolveStruct[T any](ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
 	t := reflectPkg.TypeOf(zero)
@@ -42,14 +46,14 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 			key = field.TypeKey
 		}
 
-		if !c.internal.Has(key) {
+		if !r.Has(key) {
 			if field.Optional {
 				continue
 			}
 			return zero, errServiceNotFound(key)
 		}
 
-		instance, err := c.internal.Resolve(ctx, key)
+		instance, err := r.Resolve(ctx, key)
 		if err != nil {
 			if field.Optional {
 				continue
@@ -82,7 +86,7 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 	return structVal.Interface().(T), nil
 }
 
-func buildFuncProvider[T any](c *Container, constructor any) (Provider[T], []ProviderOption, error) {
+func buildFuncProvider[T any](constructor any) (Provider[T], []string, error) {
 	params, returnType, err := reflect.FuncParams(constructor)
 	if err != nil {
 		return nil, nil, err
@@ -112,7 +116,7 @@ func buildFuncProvider[T any](c *Container, constructor any) (Provider[T], []Pro
 
 		args := make([]reflectPkg.Value, len(params))
 		for i, p := range params {
-			instance, err := c.internal.Resolve(ctx, p.TypeKey)
+			instance, err := r.Resolve(ctx, p.TypeKey)
 			if err != nil {
 				return zero, fmt.Errorf("failed to resolve parameter %d (%s): %w", i, p.TypeKey, err)
 			}
@@ -128,12 +132,12 @@ func buildFuncProvider[T any](c *Container, constructor any) (Provider[T], []Pro
 		return results[0].Interface().(T), nil
 	}
 
-	return provider, []ProviderOption{WithDependencies(deps...)}, nil
+	return provider, deps, nil
 }
 
-func buildStructProvider[T any](c *Container) (Provider[T], []ProviderOption) {
+func buildStructProvider[T any]() (Provider[T], []string) {
 	provider := func(ctx context.Context, r Resolver) (T, error) {
-		return InvokeStructCtx[T](ctx, c)
+		return resolveStruct[T](ctx, r)
 	}
 
 	fields, _ := reflect.StructFields[T](TagKey)
@@ -148,33 +152,5 @@ func buildStructProvider[T any](c *Container) (Provider[T], []ProviderOption) {
 		}
 	}
 
-	return provider, []ProviderOption{WithDependencies(deps...)}
-}
-
-func ProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) error {
-	provider, depOpts, err := buildFuncProvider[T](c, constructor)
-	if err != nil {
-		return err
-	}
-
-	opts = append(depOpts, opts...)
-	return Provide(c, provider, opts...)
-}
-
-func MustProvideFunc[T any](c *Container, constructor any, opts ...ProviderOption) {
-	if err := ProvideFunc[T](c, constructor, opts...); err != nil {
-		panic(err)
-	}
-}
-
-func ProvideStruct[T any](c *Container, opts ...ProviderOption) error {
-	provider, depOpts := buildStructProvider[T](c)
-	opts = append(depOpts, opts...)
-	return Provide(c, provider, opts...)
-}
-
-func MustProvideStruct[T any](c *Container, opts ...ProviderOption) {
-	if err := ProvideStruct[T](c, opts...); err != nil {
-		panic(err)
-	}
+	return provider, deps
 }

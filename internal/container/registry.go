@@ -22,8 +22,8 @@ type ServiceEntry struct {
 	Instance     any
 	Instantiated bool
 	Dependencies []string
-	OnStart      []Hook
-	OnStop       []Hook
+	OnStart      Hook
+	OnStop       Hook
 	Scope        scope.Scope
 	PoolSize     int
 	pool         chan any
@@ -31,6 +31,38 @@ type ServiceEntry struct {
 	StartRan     bool
 	once         sync.Once
 	initErr      error
+}
+
+type EntryConfig struct {
+	Key          string
+	Provider     ProviderFunc
+	Value        any
+	HasValue     bool
+	Dependencies []string
+	Scope        scope.Scope
+	PoolSize     int
+	Lazy         bool
+	OnStart      Hook
+	OnStop       Hook
+}
+
+func NewServiceEntry(cfg EntryConfig) *ServiceEntry {
+	entry := &ServiceEntry{
+		Key:          cfg.Key,
+		Provider:     cfg.Provider,
+		Instance:     cfg.Value,
+		Instantiated: cfg.HasValue,
+		Dependencies: cfg.Dependencies,
+		Scope:        cfg.Scope,
+		PoolSize:     cfg.PoolSize,
+		Lazy:         cfg.Lazy,
+		OnStart:      cfg.OnStart,
+		OnStop:       cfg.OnStop,
+	}
+	if cfg.PoolSize > 0 {
+		entry.pool = make(chan any, cfg.PoolSize)
+	}
+	return entry
 }
 
 type Registry struct {
@@ -44,26 +76,10 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) Register(key string, provider ProviderFunc, dependencies []string) error {
+func (r *Registry) Add(entry *ServiceEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.services[key] = &ServiceEntry{
-		Key:          key,
-		Provider:     provider,
-		Dependencies: dependencies,
-	}
-	return nil
-}
-
-func (r *Registry) RegisterValue(key string, value any) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.services[key] = &ServiceEntry{
-		Key:          key,
-		Instance:     value,
-		Instantiated: true,
-	}
-	return nil
+	r.services[entry.Key] = entry
 }
 
 func (r *Registry) Has(key string) bool {
@@ -92,7 +108,6 @@ func (r *Registry) GetInstance(key string) (any, bool) {
 	return entry.Instance, true
 }
 
-// GetInstanceFast avoids defer for performance -- this is a hot path called on every Resolve.
 func (r *Registry) GetInstanceFast(key string) (any, bool) {
 	r.mu.RLock()
 	entry, exists := r.services[key]
@@ -177,24 +192,6 @@ func (r *Registry) AllDependencies() map[string][]string {
 	return deps
 }
 
-func (r *Registry) AddOnStart(key string, hook Hook) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if entry, exists := r.services[key]; exists {
-		entry.OnStart = append(entry.OnStart, hook)
-	}
-}
-
-func (r *Registry) AddOnStop(key string, hook Hook) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if entry, exists := r.services[key]; exists {
-		entry.OnStop = append(entry.OnStop, hook)
-	}
-}
-
 func (r *Registry) GetEntry(key string) (*ServiceEntry, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -212,27 +209,6 @@ func (r *Registry) AllEntries() []*ServiceEntry {
 		entries = append(entries, entry)
 	}
 	return entries
-}
-
-func (r *Registry) SetScope(key string, s scope.Scope) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if entry, exists := r.services[key]; exists {
-		entry.Scope = s
-	}
-}
-
-func (r *Registry) SetPoolSize(key string, size int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if entry, exists := r.services[key]; exists {
-		entry.PoolSize = size
-		if size > 0 {
-			entry.pool = make(chan any, size)
-		}
-	}
 }
 
 func (r *Registry) AcquireFromPool(key string) (any, bool) {
@@ -269,15 +245,6 @@ func (r *Registry) ReleaseToPool(key string, instance any) bool {
 	}
 }
 
-func (r *Registry) SetLazy(key string, lazy bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if entry, exists := r.services[key]; exists {
-		entry.Lazy = lazy
-	}
-}
-
 func (r *Registry) IsLazy(key string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -286,34 +253,6 @@ func (r *Registry) IsLazy(key string) bool {
 		return entry.Lazy
 	}
 	return false
-}
-
-func (r *Registry) GetOnStartHooks(key string) []Hook {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	entry, exists := r.services[key]
-	if !exists {
-		return nil
-	}
-
-	hooks := make([]Hook, len(entry.OnStart))
-	copy(hooks, entry.OnStart)
-	return hooks
-}
-
-func (r *Registry) GetOnStopHooks(key string) []Hook {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	entry, exists := r.services[key]
-	if !exists {
-		return nil
-	}
-
-	hooks := make([]Hook, len(entry.OnStop))
-	copy(hooks, entry.OnStop)
-	return hooks
 }
 
 func (r *Registry) SetStartRan(key string) {

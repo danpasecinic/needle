@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/danpasecinic/needle/internal/graph"
-	"github.com/danpasecinic/needle/internal/scope"
 )
 
 type State int
@@ -74,60 +73,35 @@ func New(cfg *Config) *Container {
 	}
 }
 
-func (c *Container) Register(key string, provider ProviderFunc, dependencies []string) error {
-	if err := c.registerLocked(key, provider, dependencies); err != nil {
+func (c *Container) Register(entry *ServiceEntry) error {
+	if err := c.registerLocked(entry); err != nil {
 		return err
 	}
 
 	for _, hook := range c.onProvide {
-		hook(key)
+		hook(entry.Key)
 	}
 
 	return nil
 }
 
-func (c *Container) registerLocked(key string, provider ProviderFunc, dependencies []string) error {
+func (c *Container) registerLocked(entry *ServiceEntry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.registry.Has(key) {
-		return fmt.Errorf("service already registered: %s", key)
+	if c.registry.Has(entry.Key) {
+		return fmt.Errorf("service already registered: %s", entry.Key)
 	}
 
-	_ = c.registry.Register(key, provider, dependencies)
-	c.graph.AddNode(key, dependencies)
+	c.registry.Add(entry)
+	c.graph.AddNode(entry.Key, entry.Dependencies)
 
-	if len(dependencies) > 0 && c.graph.HasCycle() {
-		c.registry.Remove(key)
-		c.graph.RemoveNode(key)
-		return fmt.Errorf("circular dependency detected for: %s", key)
+	if len(entry.Dependencies) > 0 && c.graph.HasCycle() {
+		c.registry.Remove(entry.Key)
+		c.graph.RemoveNode(entry.Key)
+		return fmt.Errorf("circular dependency detected for: %s", entry.Key)
 	}
 
-	return nil
-}
-
-func (c *Container) RegisterValue(key string, value any) error {
-	if err := c.registerValueLocked(key, value); err != nil {
-		return err
-	}
-
-	for _, hook := range c.onProvide {
-		hook(key)
-	}
-
-	return nil
-}
-
-func (c *Container) registerValueLocked(key string, value any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.registry.Has(key) {
-		return fmt.Errorf("service already registered: %s", key)
-	}
-
-	_ = c.registry.RegisterValue(key, value)
-	c.graph.AddNode(key, nil)
 	return nil
 }
 
@@ -195,24 +169,4 @@ func (c *Container) Release(key string, instance any) bool {
 		c.logger.Warn("pool overflow: instance dropped", "service", key)
 	}
 	return released
-}
-
-func (c *Container) AddOnStart(key string, hook Hook) {
-	c.registry.AddOnStart(key, hook)
-}
-
-func (c *Container) AddOnStop(key string, hook Hook) {
-	c.registry.AddOnStop(key, hook)
-}
-
-func (c *Container) SetScope(key string, s scope.Scope) {
-	c.registry.SetScope(key, s)
-}
-
-func (c *Container) SetPoolSize(key string, size int) {
-	c.registry.SetPoolSize(key, size)
-}
-
-func (c *Container) SetLazy(key string, lazy bool) {
-	c.registry.SetLazy(key, lazy)
 }

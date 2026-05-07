@@ -44,18 +44,18 @@ func TestNewWithLogger(t *testing.T) {
 	}
 }
 
-func TestProvideAndInvoke(t *testing.T) {
+func TestRegisterAndInvoke(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
-	err := needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+	err := needle.Register(c, needle.Spec[*Config]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 			return &Config{Port: 8080, Host: "localhost"}, nil
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	cfg, err := needle.Invoke[*Config](c)
@@ -71,15 +71,15 @@ func TestProvideAndInvoke(t *testing.T) {
 	}
 }
 
-func TestProvideValue(t *testing.T) {
+func TestRegisterValue(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
 
 	config := &Config{Port: 3000, Host: "0.0.0.0"}
-	err := needle.ProvideValue(c, config)
+	err := needle.Register(c, needle.SpecValue(config))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register value failed: %v", err)
 	}
 
 	cfg, err := needle.Invoke[*Config](c)
@@ -97,30 +97,30 @@ func TestDependencyChain(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.ProvideValue(c, &Config{Port: 5432, Host: "db.local"})
+	err := needle.Register(c, needle.SpecValue(&Config{Port: 5432, Host: "db.local"}))
 	if err != nil {
-		t.Fatalf("ProvideValue for Config failed: %v", err)
+		t.Fatalf("Register Config value failed: %v", err)
 	}
 
-	err = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	err = needle.Register(c, needle.Spec[*Database]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			return &Database{Config: cfg, Name: "testdb"}, nil
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("Provide for Database failed: %v", err)
+		t.Fatalf("Register Database failed: %v", err)
 	}
 
-	err = needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
+	err = needle.Register(c, needle.Spec[*Server]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
 			db := needle.MustInvoke[*Database](c)
 			cfg := needle.MustInvoke[*Config](c)
 			return &Server{DB: db, Config: cfg}, nil
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("Provide for Server failed: %v", err)
+		t.Fatalf("Register Server failed: %v", err)
 	}
 
 	server, err := needle.Invoke[*Server](c)
@@ -144,22 +144,24 @@ func TestNamedServices(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.ProvideNamed(
-		c, "primary", func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	err := needle.Register(c, needle.Spec[*Database]{
+		Name: "primary",
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			return &Database{Name: "primary"}, nil
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("ProvideNamed for primary failed: %v", err)
+		t.Fatalf("Register primary failed: %v", err)
 	}
 
-	err = needle.ProvideNamed(
-		c, "replica", func(ctx context.Context, r needle.Resolver) (*Database, error) {
+	err = needle.Register(c, needle.Spec[*Database]{
+		Name: "replica",
+		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
 			return &Database{Name: "replica"}, nil
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("ProvideNamed for replica failed: %v", err)
+		t.Fatalf("Register replica failed: %v", err)
 	}
 
 	primary, err := needle.InvokeNamed[*Database](c, "primary")
@@ -185,9 +187,9 @@ func TestMustInvoke(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.ProvideValue(c, &Config{Port: 8080})
+	err := needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	cfg := needle.MustInvoke[*Config](c)
@@ -220,9 +222,9 @@ func TestTryInvoke(t *testing.T) {
 		t.Error("TryInvoke should return false for missing service")
 	}
 
-	err := needle.ProvideValue(c, &Config{Port: 8080})
+	err := needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	cfg, ok := needle.TryInvoke[*Config](c)
@@ -243,9 +245,9 @@ func TestHas(t *testing.T) {
 		t.Error("Has should return false for missing service")
 	}
 
-	err := needle.ProvideValue(c, &Config{})
+	err := needle.Register(c, needle.SpecValue(&Config{}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	if !needle.Has[*Config](c) {
@@ -262,9 +264,9 @@ func TestHasNamed(t *testing.T) {
 		t.Error("HasNamed should return false for missing service")
 	}
 
-	err := needle.ProvideNamedValue(c, "myconfig", &Config{})
+	err := needle.Register(c, needle.SpecValue(&Config{}).WithName("myconfig"))
 	if err != nil {
-		t.Fatalf("ProvideNamedValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	if !needle.HasNamed[*Config](c, "myconfig") {
@@ -278,13 +280,13 @@ func TestProviderError(t *testing.T) {
 	c := needle.New()
 
 	expectedErr := errors.New("provider error")
-	err := needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+	err := needle.Register(c, needle.Spec[*Config]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 			return nil, expectedErr
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_, err = needle.Invoke[*Config](c)
@@ -298,9 +300,9 @@ func TestContainerValidate(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.ProvideValue(c, &Config{})
+	err := needle.Register(c, needle.SpecValue(&Config{}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	err = c.Validate()
@@ -318,8 +320,8 @@ func TestContainerSize(t *testing.T) {
 		t.Error("empty container should have size 0")
 	}
 
-	_ = needle.ProvideValue(c, &Config{})
-	_ = needle.ProvideValue(c, &Database{})
+	_ = needle.Register(c, needle.SpecValue(&Config{}))
+	_ = needle.Register(c, needle.SpecValue(&Database{}))
 
 	if c.Size() != 2 {
 		t.Errorf("expected size 2, got %d", c.Size())
@@ -331,8 +333,8 @@ func TestContainerKeys(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, &Config{})
-	_ = needle.ProvideValue(c, &Database{})
+	_ = needle.Register(c, needle.SpecValue(&Config{}))
+	_ = needle.Register(c, needle.SpecValue(&Database{}))
 
 	keys := c.Keys()
 	if len(keys) != 2 {
@@ -345,13 +347,13 @@ func TestInvokeWithContext(t *testing.T) {
 
 	c := needle.New()
 
-	err := needle.Provide(
-		c, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+	err := needle.Register(c, needle.Spec[*Config]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
 			return &Config{Port: 8080}, nil
 		},
-	)
+	})
 	if err != nil {
-		t.Fatalf("Provide failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	ctx := context.Background()
@@ -365,9 +367,9 @@ func TestInvokeWithContext(t *testing.T) {
 	}
 }
 
-func BenchmarkProvideAndInvoke(b *testing.B) {
+func BenchmarkRegisterAndInvoke(b *testing.B) {
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -377,7 +379,7 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 
 func BenchmarkMustInvoke(b *testing.B) {
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -389,7 +391,7 @@ func TestOptionalPresent(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
-	_ = needle.ProvideValue(c, &Config{Port: 8080, Host: "localhost"})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080, Host: "localhost"}))
 
 	opt, err := needle.InvokeOptional[*Config](c)
 	if err != nil {
@@ -452,7 +454,7 @@ func TestOptionalOrElse(t *testing.T) {
 		t.Errorf("expected port 3000, got %d", result.Port)
 	}
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	opt2, err := needle.InvokeOptional[*Config](c)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -486,7 +488,7 @@ func TestOptionalOrElseFunc(t *testing.T) {
 		t.Errorf("expected func to be called once, got %d", callCount)
 	}
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	opt2, err := needle.InvokeOptional[*Config](c)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -508,7 +510,7 @@ func TestOptionalNamed(t *testing.T) {
 	t.Parallel()
 
 	c := needle.New()
-	_ = needle.ProvideNamedValue(c, "primary", &Config{Port: 5432})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 5432}).WithName("primary"))
 
 	opt, err := needle.InvokeOptionalNamed[*Config](c, "primary")
 	if err != nil {
@@ -543,14 +545,16 @@ func TestOptionalInProvider(t *testing.T) {
 		Cache *Cache
 	}
 
-	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
-		cacheOpt, err := needle.InvokeOptional[*Cache](c)
-		if err != nil {
-			return nil, err
-		}
-		return &Service{
-			Cache: cacheOpt.OrElse(nil),
-		}, nil
+	_ = needle.Register(c, needle.Spec[*Service]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Service, error) {
+			cacheOpt, err := needle.InvokeOptional[*Cache](c)
+			if err != nil {
+				return nil, err
+			}
+			return &Service{
+				Cache: cacheOpt.OrElse(nil),
+			}, nil
+		},
 	})
 
 	svc := needle.MustInvoke[*Service](c)
@@ -572,15 +576,17 @@ func TestOptionalInProviderWithValue(t *testing.T) {
 		Cache *Cache
 	}
 
-	_ = needle.ProvideValue(c, &Cache{Enabled: true})
-	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Service, error) {
-		cacheOpt, err := needle.InvokeOptional[*Cache](c)
-		if err != nil {
-			return nil, err
-		}
-		return &Service{
-			Cache: cacheOpt.OrElse(nil),
-		}, nil
+	_ = needle.Register(c, needle.SpecValue(&Cache{Enabled: true}))
+	_ = needle.Register(c, needle.Spec[*Service]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Service, error) {
+			cacheOpt, err := needle.InvokeOptional[*Cache](c)
+			if err != nil {
+				return nil, err
+			}
+			return &Service{
+				Cache: cacheOpt.OrElse(nil),
+			}, nil
+		},
 	})
 
 	svc := needle.MustInvoke[*Service](c)
@@ -597,8 +603,10 @@ func TestOptionalResolutionError(t *testing.T) {
 
 	c := needle.New()
 
-	_ = needle.Provide(c, func(_ context.Context, _ needle.Resolver) (*Config, error) {
-		return nil, errors.New("provider broken")
+	_ = needle.Register(c, needle.Spec[*Config]{
+		Provider: func(_ context.Context, _ needle.Resolver) (*Config, error) {
+			return nil, errors.New("provider broken")
+		},
 	})
 
 	opt, err := needle.InvokeOptional[*Config](c)

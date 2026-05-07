@@ -40,9 +40,9 @@ func TestHealthCheckHealthyService(t *testing.T) {
 	c := needle.New()
 	ctx := context.Background()
 
-	err := needle.ProvideValue(c, &HealthyService{})
+	err := needle.Register(c, needle.SpecValue(&HealthyService{}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_ = c.Start(ctx)
@@ -68,9 +68,9 @@ func TestHealthCheckUnhealthyService(t *testing.T) {
 	c := needle.New()
 	ctx := context.Background()
 
-	err := needle.ProvideValue(c, &UnhealthyService{})
+	err := needle.Register(c, needle.SpecValue(&UnhealthyService{}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_ = c.Start(ctx)
@@ -100,9 +100,9 @@ func TestReadinessCheckReadyService(t *testing.T) {
 	c := needle.New()
 	ctx := context.Background()
 
-	err := needle.ProvideValue(c, &ReadyService{})
+	err := needle.Register(c, needle.SpecValue(&ReadyService{}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_ = c.Start(ctx)
@@ -119,9 +119,9 @@ func TestReadinessCheckNotReadyService(t *testing.T) {
 	c := needle.New()
 	ctx := context.Background()
 
-	err := needle.ProvideValue(c, &NotReadyService{})
+	err := needle.Register(c, needle.SpecValue(&NotReadyService{}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_ = c.Start(ctx)
@@ -138,9 +138,9 @@ func TestHealthCheckNoHealthCheckers(t *testing.T) {
 	c := needle.New()
 	ctx := context.Background()
 
-	err := needle.ProvideValue(c, &Config{Port: 8080})
+	err := needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_ = c.Start(ctx)
@@ -171,9 +171,9 @@ func TestResolveObserver(t *testing.T) {
 		}),
 	)
 
-	err := needle.ProvideValue(c, &Config{Port: 8080})
+	err := needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	if err != nil {
-		t.Fatalf("ProvideValue failed: %v", err)
+		t.Fatalf("Register failed: %v", err)
 	}
 
 	_, err = needle.Invoke[*Config](c)
@@ -225,8 +225,8 @@ func TestProvideObserver(t *testing.T) {
 		}),
 	)
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
-	_ = needle.ProvideValue(c, &Database{Name: "test"})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
+	_ = needle.Register(c, needle.SpecValue(&Database{Name: "test"}))
 
 	if callCount.Load() != 2 {
 		t.Errorf("expected 2 provide hook calls, got %d", callCount.Load())
@@ -250,7 +250,7 @@ func TestStartObserver(t *testing.T) {
 		}),
 	)
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 
 	ctx := context.Background()
 	err := c.Start(ctx)
@@ -274,11 +274,14 @@ func TestStopObserver(t *testing.T) {
 		}),
 	)
 
-	_ = needle.Provide(c, func(ctx context.Context, r needle.Resolver) (*Server, error) {
-		return &Server{}, nil
-	}, needle.WithOnStop(func(ctx context.Context) error {
-		return nil
-	}))
+	_ = needle.Register(c, needle.Spec[*Server]{
+		Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+			return &Server{}, nil
+		},
+		OnStop: func(ctx context.Context) error {
+			return nil
+		},
+	})
 
 	ctx := context.Background()
 	_ = c.Start(ctx)
@@ -302,7 +305,7 @@ func TestHealthReportLatency(t *testing.T) {
 	c := needle.New()
 	ctx := context.Background()
 
-	_ = needle.ProvideValue(c, &SlowHealthService{})
+	_ = needle.Register(c, needle.SpecValue(&SlowHealthService{}))
 	_ = c.Start(ctx)
 
 	reports := c.Health(ctx)
@@ -330,7 +333,7 @@ func TestMultipleObservers(t *testing.T) {
 		}),
 	)
 
-	_ = needle.ProvideValue(c, &Config{Port: 8080})
+	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	_, _ = needle.Invoke[*Config](c)
 
 	if count1.Load() != 1 || count2.Load() != 1 {
