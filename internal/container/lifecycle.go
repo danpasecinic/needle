@@ -11,7 +11,7 @@ func (c *Container) Start(ctx context.Context) error {
 	c.mu.Lock()
 	if c.state != StateNew && c.state != StateStopped {
 		c.mu.Unlock()
-		return fmt.Errorf("container already started")
+		return ErrContainerStateChange
 	}
 	c.state = StateStarting
 	c.mu.Unlock()

@@ -16,7 +16,7 @@ func (c *Container) Replace(entry *ServiceEntry) error {
 		c.registry.Remove(entry.Key)
 		c.graph.RemoveNode(entry.Key)
 		cyclePath := c.graph.FindCyclePath(entry.Key)
-		return fmt.Errorf("circular dependency detected: %v", cyclePath)
+		return fmt.Errorf("%w: %v", ErrCircularDependency, cyclePath)
 	}
 
 	return nil

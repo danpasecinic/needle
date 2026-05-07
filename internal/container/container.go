@@ -90,7 +90,7 @@ func (c *Container) registerLocked(entry *ServiceEntry) error {
 	defer c.mu.Unlock()
 
 	if c.registry.Has(entry.Key) {
-		return fmt.Errorf("service already registered: %s", entry.Key)
+		return fmt.Errorf("%w: %s", ErrDuplicateService, entry.Key)
 	}
 
 	c.registry.Add(entry)
@@ -99,7 +99,7 @@ func (c *Container) registerLocked(entry *ServiceEntry) error {
 	if len(entry.Dependencies) > 0 && c.graph.HasCycle() {
 		c.registry.Remove(entry.Key)
 		c.graph.RemoveNode(entry.Key)
-		return fmt.Errorf("circular dependency detected for: %s", entry.Key)
+		return fmt.Errorf("%w: %s", ErrCircularDependency, entry.Key)
 	}
 
 	return nil
@@ -144,7 +144,7 @@ func (c *Container) Validate() error {
 
 	if c.graph.HasCycle() {
 		cycles := c.graph.GetAllCyclePaths()
-		return fmt.Errorf("circular dependencies detected: %v", cycles)
+		return fmt.Errorf("%w: %v", ErrCircularDependency, cycles)
 	}
 
 	return nil
