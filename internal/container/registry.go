@@ -206,40 +206,6 @@ func (r *Registry) AllEntries() []*ServiceEntry {
 	return entries
 }
 
-func (r *Registry) AcquireFromPool(key string) (any, bool) {
-	r.mu.RLock()
-	entry, exists := r.services[key]
-	r.mu.RUnlock()
-
-	if !exists || entry.pool == nil {
-		return nil, false
-	}
-
-	select {
-	case instance := <-entry.pool:
-		return instance, true
-	default:
-		return nil, false
-	}
-}
-
-func (r *Registry) ReleaseToPool(key string, instance any) bool {
-	r.mu.RLock()
-	entry, exists := r.services[key]
-	r.mu.RUnlock()
-
-	if !exists || entry.pool == nil {
-		return false
-	}
-
-	select {
-	case entry.pool <- instance:
-		return true
-	default:
-		return false
-	}
-}
-
 func (r *Registry) IsLazy(key string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
