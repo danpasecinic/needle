@@ -15,10 +15,10 @@ func InvokeStruct[T any](c *Container) (T, error) {
 }
 
 func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
-	return resolveStruct[T](ctx, c.resolver)
+	return resolveStruct[T](ctx, c)
 }
 
-func resolveStruct[T any](ctx context.Context, r Resolver) (T, error) {
+func resolveStruct[T any](ctx context.Context, c *Container) (T, error) {
 	var zero T
 
 	t := reflectPkg.TypeOf(zero)
@@ -46,14 +46,14 @@ func resolveStruct[T any](ctx context.Context, r Resolver) (T, error) {
 			key = field.TypeKey
 		}
 
-		if !r.Has(key) {
+		if !c.internal.Has(key) {
 			if field.Optional {
 				continue
 			}
 			return zero, errServiceNotFound(key)
 		}
 
-		instance, err := r.Resolve(ctx, key)
+		instance, err := c.internal.Resolve(ctx, key)
 		if err != nil {
 			if field.Optional {
 				continue
@@ -111,12 +111,12 @@ func buildFuncProvider[T any](constructor any) (Provider[T], []string, error) {
 		deps[i] = p.TypeKey
 	}
 
-	provider := func(ctx context.Context, r Resolver) (T, error) {
+	provider := func(ctx context.Context, c *Container) (T, error) {
 		var zero T
 
 		args := make([]reflectPkg.Value, len(params))
 		for i, p := range params {
-			instance, err := r.Resolve(ctx, p.TypeKey)
+			instance, err := c.internal.Resolve(ctx, p.TypeKey)
 			if err != nil {
 				return zero, fmt.Errorf("failed to resolve parameter %d (%s): %w", i, p.TypeKey, err)
 			}
@@ -136,8 +136,8 @@ func buildFuncProvider[T any](constructor any) (Provider[T], []string, error) {
 }
 
 func buildStructProvider[T any]() (Provider[T], []string) {
-	provider := func(ctx context.Context, r Resolver) (T, error) {
-		return resolveStruct[T](ctx, r)
+	provider := func(ctx context.Context, c *Container) (T, error) {
+		return resolveStruct[T](ctx, c)
 	}
 
 	fields, _ := reflect.StructFields[T](TagKey)

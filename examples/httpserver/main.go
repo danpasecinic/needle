@@ -88,14 +88,14 @@ func main() {
 	_ = needle.Register(c, needle.SpecValue(logger))
 
 	_ = needle.Register(c, needle.Spec[http.Handler]{
-		Provider: func(ctx context.Context, r needle.Resolver) (http.Handler, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (http.Handler, error) {
 			log := needle.MustInvoke[*slog.Logger](c)
 			return NewHandler(log), nil
 		},
 	})
 
 	_ = needle.Register(c, needle.Spec[*Server]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Server, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			handler := needle.MustInvoke[http.Handler](c)
 			log := needle.MustInvoke[*slog.Logger](c)

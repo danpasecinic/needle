@@ -3,7 +3,6 @@ package needle
 import (
 	"context"
 
-	"github.com/danpasecinic/needle/internal/container"
 	"github.com/danpasecinic/needle/internal/reflect"
 )
 
@@ -16,7 +15,7 @@ type Module struct {
 
 type decoratorEntry struct {
 	key       string
-	decorator func(ctx context.Context, r Resolver, instance any) (any, error)
+	decorator func(ctx context.Context, c *Container, instance any) (any, error)
 }
 
 func NewModule(name string) *Module {
@@ -54,13 +53,13 @@ func ModuleDecorate[T any](m *Module, decorator Decorator[T]) *Module {
 	m.decorators = append(
 		m.decorators, decoratorEntry{
 			key: key,
-			decorator: func(ctx context.Context, r Resolver, instance any) (any, error) {
+			decorator: func(ctx context.Context, c *Container, instance any) (any, error) {
 				typed, ok := instance.(T)
 				if !ok {
 					var zero T
 					return zero, errDecoratorTypeMismatch(reflect.TypeName[T]())
 				}
-				return decorator(ctx, r, typed)
+				return decorator(ctx, c, typed)
 			},
 		},
 	)
@@ -83,8 +82,8 @@ func (m *Module) apply(c *Container) error {
 	for _, d := range m.decorators {
 		entry := d
 		c.internal.AddDecorator(
-			entry.key, func(ctx context.Context, _ container.Resolver, instance any) (any, error) {
-				return entry.decorator(ctx, c.resolver, instance)
+			entry.key, func(ctx context.Context, instance any) (any, error) {
+				return entry.decorator(ctx, c, instance)
 			},
 		)
 	}

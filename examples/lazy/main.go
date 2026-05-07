@@ -40,7 +40,7 @@ func main() {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*EagerService]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*EagerService, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*EagerService, error) {
 			return NewEagerService("EagerService"), nil
 		},
 		OnStart: func(_ context.Context) error {
@@ -54,7 +54,7 @@ func main() {
 	})
 
 	_ = needle.Register(c, needle.Spec[*ExpensiveService]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*ExpensiveService, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*ExpensiveService, error) {
 			return NewExpensiveService("LazyExpensiveService"), nil
 		},
 		Lazy: true,

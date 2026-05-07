@@ -96,7 +96,7 @@ func (c *Container) resolveSingleton(ctx context.Context, key string, entry *Ser
 			}
 		}
 
-		inst, err := entry.Provider(ctx, c)
+		inst, err := entry.Provider(ctx)
 		if err != nil {
 			entry.initErr = fmt.Errorf("provider failed for %s: %w", key, err)
 			return
@@ -147,7 +147,7 @@ func (c *Container) resolveTransient(ctx context.Context, key string, entry *Ser
 		}
 	}
 
-	instance, err := entry.Provider(ctx, c)
+	instance, err := entry.Provider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}
@@ -208,7 +208,7 @@ func (c *Container) resolveRequest(ctx context.Context, key string, entry *Servi
 		}
 	}
 
-	instance, err := entry.Provider(ctx, c)
+	instance, err := entry.Provider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}
@@ -233,7 +233,7 @@ func (c *Container) resolvePooled(ctx context.Context, key string, entry *Servic
 		}
 	}
 
-	instance, err := entry.Provider(ctx, c)
+	instance, err := entry.Provider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("provider failed for %s: %w", key, err)
 	}

@@ -140,7 +140,7 @@ func benchmarkStartup(b *testing.B, parallel bool, count int, workDuration time.
 			key := fmt.Sprintf("svc_%d", j)
 			_ = Register(c, Spec[*benchService]{
 				Name: key,
-				Provider: func(ctx context.Context, r Resolver) (*benchService, error) {
+				Provider: func(ctx context.Context, c *Container) (*benchService, error) {
 					return &benchService{id: idx}, nil
 				},
 				OnStart: func(ctx context.Context) error {
@@ -177,7 +177,7 @@ func benchmarkShutdown(b *testing.B, parallel bool, count int, workDuration time
 			key := fmt.Sprintf("svc_%d", j)
 			_ = Register(c, Spec[*benchService]{
 				Name: key,
-				Provider: func(ctx context.Context, r Resolver) (*benchService, error) {
+				Provider: func(ctx context.Context, c *Container) (*benchService, error) {
 					return &benchService{id: idx}, nil
 				},
 				OnStop: func(ctx context.Context) error {
@@ -223,7 +223,7 @@ func benchmarkDependencyChain(b *testing.B, parallel bool, depth int, workDurati
 
 			_ = Register(c, Spec[*chainService]{
 				Name: key,
-				Provider: func(ctx context.Context, r Resolver) (*chainService, error) {
+				Provider: func(ctx context.Context, c *Container) (*chainService, error) {
 					return &chainService{level: level}, nil
 				},
 				Dependencies: deps,
@@ -276,7 +276,7 @@ func benchmarkWideDependencies(b *testing.B, parallel bool, width int, workDurat
 
 			_ = Register(c, Spec[*wideService]{
 				Name: key,
-				Provider: func(ctx context.Context, r Resolver) (*wideService, error) {
+				Provider: func(ctx context.Context, c *Container) (*wideService, error) {
 					return &wideService{id: idx}, nil
 				},
 				OnStart: func(ctx context.Context) error {
@@ -296,7 +296,7 @@ func benchmarkWideDependencies(b *testing.B, parallel bool, width int, workDurat
 
 		_ = Register(c, Spec[*aggregatorService]{
 			Name: "aggregator",
-			Provider: func(ctx context.Context, r Resolver) (*aggregatorService, error) {
+			Provider: func(ctx context.Context, c *Container) (*aggregatorService, error) {
 				return &aggregatorService{}, nil
 			},
 			Dependencies: depKeys,

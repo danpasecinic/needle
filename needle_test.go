@@ -50,7 +50,7 @@ func TestRegisterAndInvoke(t *testing.T) {
 	c := needle.New()
 
 	err := needle.Register(c, needle.Spec[*Config]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 			return &Config{Port: 8080, Host: "localhost"}, nil
 		},
 	})
@@ -103,7 +103,7 @@ func TestDependencyChain(t *testing.T) {
 	}
 
 	err = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			return &Database{Config: cfg, Name: "testdb"}, nil
 		},
@@ -113,7 +113,7 @@ func TestDependencyChain(t *testing.T) {
 	}
 
 	err = needle.Register(c, needle.Spec[*Server]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Server, error) {
 			db := needle.MustInvoke[*Database](c)
 			cfg := needle.MustInvoke[*Config](c)
 			return &Server{DB: db, Config: cfg}, nil
@@ -146,7 +146,7 @@ func TestNamedServices(t *testing.T) {
 
 	err := needle.Register(c, needle.Spec[*Database]{
 		Name: "primary",
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			return &Database{Name: "primary"}, nil
 		},
 	})
@@ -156,7 +156,7 @@ func TestNamedServices(t *testing.T) {
 
 	err = needle.Register(c, needle.Spec[*Database]{
 		Name: "replica",
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			return &Database{Name: "replica"}, nil
 		},
 	})
@@ -281,7 +281,7 @@ func TestProviderError(t *testing.T) {
 
 	expectedErr := errors.New("provider error")
 	err := needle.Register(c, needle.Spec[*Config]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 			return nil, expectedErr
 		},
 	})
@@ -348,7 +348,7 @@ func TestInvokeWithContext(t *testing.T) {
 	c := needle.New()
 
 	err := needle.Register(c, needle.Spec[*Config]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 			return &Config{Port: 8080}, nil
 		},
 	})
@@ -546,7 +546,7 @@ func TestOptionalInProvider(t *testing.T) {
 	}
 
 	_ = needle.Register(c, needle.Spec[*Service]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Service, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Service, error) {
 			cacheOpt, err := needle.InvokeOptional[*Cache](c)
 			if err != nil {
 				return nil, err
@@ -578,7 +578,7 @@ func TestOptionalInProviderWithValue(t *testing.T) {
 
 	_ = needle.Register(c, needle.SpecValue(&Cache{Enabled: true}))
 	_ = needle.Register(c, needle.Spec[*Service]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Service, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Service, error) {
 			cacheOpt, err := needle.InvokeOptional[*Cache](c)
 			if err != nil {
 				return nil, err
@@ -604,7 +604,7 @@ func TestOptionalResolutionError(t *testing.T) {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*Config]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*Config, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*Config, error) {
 			return nil, errors.New("provider broken")
 		},
 	})

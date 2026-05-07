@@ -23,7 +23,7 @@ func (c *Container) applyDecorators(ctx context.Context, key string, instance an
 
 	var err error
 	for _, decorator := range decorators {
-		instance, err = decorator(ctx, c, instance)
+		instance, err = decorator(ctx, instance)
 		if err != nil {
 			return nil, fmt.Errorf("decorator failed for %s: %w", key, err)
 		}

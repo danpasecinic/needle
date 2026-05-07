@@ -9,7 +9,7 @@ import (
 	"github.com/danpasecinic/needle/internal/reflect"
 )
 
-type Provider[T any] func(ctx context.Context, r Resolver) (T, error)
+type Provider[T any] func(ctx context.Context, c *Container) (T, error)
 
 type Spec[T any] struct {
 	Name         string
@@ -163,9 +163,8 @@ func buildEntry[T any](c *Container, spec Spec[T]) (*container.ServiceEntry, err
 		cfg.HasValue = true
 	} else {
 		provider := spec.Provider
-		resolver := c.resolver
-		cfg.Provider = func(ctx context.Context, _ container.Resolver) (any, error) {
-			return provider(ctx, resolver)
+		cfg.Provider = func(ctx context.Context) (any, error) {
+			return provider(ctx, c)
 		}
 	}
 
@@ -201,20 +200,19 @@ func SpecFromStruct[T any]() Spec[T] {
 // from the container and returns it as I. Use to wire an interface to a concrete
 // type already registered under T's key.
 func SpecFromBinding[I, T any]() Spec[I] {
-	implKey := reflect.TypeKey[T]()
 	return Spec[I]{
-		Provider: func(ctx context.Context, r Resolver) (I, error) {
+		Provider: func(ctx context.Context, c *Container) (I, error) {
 			var zero I
-			instance, err := r.Resolve(ctx, implKey)
+			instance, err := InvokeCtx[T](ctx, c)
 			if err != nil {
 				return zero, err
 			}
-			typed, ok := instance.(I)
+			typed, ok := any(instance).(I)
 			if !ok {
 				return zero, fmt.Errorf("binding type mismatch: %s does not implement %s", reflect.TypeName[T](), reflect.TypeName[I]())
 			}
 			return typed, nil
 		},
-		Dependencies: []string{implKey},
+		Dependencies: []string{reflect.TypeKey[T]()},
 	}
 }

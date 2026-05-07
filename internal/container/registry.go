@@ -7,12 +7,7 @@ import (
 	"github.com/danpasecinic/needle/internal/scope"
 )
 
-type ProviderFunc func(ctx context.Context, r Resolver) (any, error)
-
-type Resolver interface {
-	Resolve(ctx context.Context, key string) (any, error)
-	Has(key string) bool
-}
+type ProviderFunc func(ctx context.Context) (any, error)
 
 type Hook func(ctx context.Context) error
 

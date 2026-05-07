@@ -275,7 +275,7 @@ func TestStopObserver(t *testing.T) {
 	)
 
 	_ = needle.Register(c, needle.Spec[*Server]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Server, error) {
 			return &Server{}, nil
 		},
 		OnStop: func(ctx context.Context) error {

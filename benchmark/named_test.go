@@ -21,7 +21,7 @@ func BenchmarkNamed_10_Needle(b *testing.B) {
 			key := fmt.Sprintf("svc_%d", j)
 			_ = needle.Register(c, needle.Spec[*Config]{
 				Name: key,
-				Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+				Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
 			})

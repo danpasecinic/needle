@@ -14,7 +14,7 @@ func TestScope_Singleton(t *testing.T) {
 	var callCount atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
+		Provider: func(ctx context.Context, c *Container) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
 		},
@@ -41,7 +41,7 @@ func TestScope_Transient(t *testing.T) {
 	var callCount atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
+		Provider: func(ctx context.Context, c *Container) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
 		},
@@ -75,7 +75,7 @@ func TestScope_Request(t *testing.T) {
 	var callCount atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
+		Provider: func(ctx context.Context, c *Container) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
 		},
@@ -114,7 +114,7 @@ func TestScope_Request_NoScope(t *testing.T) {
 	c := New()
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
+		Provider: func(ctx context.Context, c *Container) (*testCounter, error) {
 			return &testCounter{id: 1}, nil
 		},
 		Scope: Request,
@@ -136,7 +136,7 @@ func TestScope_Pooled(t *testing.T) {
 	var callCount atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
+		Provider: func(ctx context.Context, c *Container) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
 		},
@@ -180,7 +180,7 @@ func TestScope_Pooled_Overflow(t *testing.T) {
 	var callCount atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(ctx context.Context, r Resolver) (*testCounter, error) {
+		Provider: func(ctx context.Context, c *Container) (*testCounter, error) {
 			callCount.Add(1)
 			return &testCounter{id: int(callCount.Load())}, nil
 		},

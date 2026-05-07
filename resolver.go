@@ -7,23 +7,6 @@ import (
 	"github.com/danpasecinic/needle/internal/reflect"
 )
 
-type Resolver interface {
-	Resolve(ctx context.Context, key string) (any, error)
-	Has(key string) bool
-}
-
-type resolverAdapter struct {
-	container *Container
-}
-
-func (r *resolverAdapter) Resolve(ctx context.Context, key string) (any, error) {
-	return r.container.internal.Resolve(ctx, key)
-}
-
-func (r *resolverAdapter) Has(key string) bool {
-	return r.container.internal.Has(key)
-}
-
 func Invoke[T any](c *Container) (T, error) {
 	return InvokeCtx[T](context.Background(), c)
 }

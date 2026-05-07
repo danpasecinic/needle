@@ -29,7 +29,7 @@ func TestContainer_RegisterAndResolve(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := registerProvider(c, "config", func(ctx context.Context, r Resolver) (any, error) {
+	err := registerProvider(c, "config", func(ctx context.Context) (any, error) {
 		return map[string]string{"port": "8080"}, nil
 	}, nil)
 	if err != nil {
@@ -84,8 +84,8 @@ func TestContainer_DependencyResolution(t *testing.T) {
 		t.Fatalf("failed to register config: %v", err)
 	}
 
-	err = registerProvider(c, "database", func(ctx context.Context, r Resolver) (any, error) {
-		cfg, err := r.Resolve(ctx, "config")
+	err = registerProvider(c, "database", func(ctx context.Context) (any, error) {
+		cfg, err := c.Resolve(ctx, "config")
 		if err != nil {
 			return nil, err
 		}
@@ -127,14 +127,14 @@ func TestContainer_CircularDependency(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := registerProvider(c, "A", func(ctx context.Context, r Resolver) (any, error) {
+	err := registerProvider(c, "A", func(ctx context.Context) (any, error) {
 		return "A", nil
 	}, []string{"B"})
 	if err != nil {
 		t.Fatalf("failed to register A: %v", err)
 	}
 
-	err = registerProvider(c, "B", func(ctx context.Context, r Resolver) (any, error) {
+	err = registerProvider(c, "B", func(ctx context.Context) (any, error) {
 		return "B", nil
 	}, []string{"A"})
 	if err == nil {
@@ -147,8 +147,8 @@ func TestContainer_MissingDependency(t *testing.T) {
 
 	c := New(&Config{})
 
-	err := registerProvider(c, "service", func(ctx context.Context, r Resolver) (any, error) {
-		_, err := r.Resolve(ctx, "missing")
+	err := registerProvider(c, "service", func(ctx context.Context) (any, error) {
+		_, err := c.Resolve(ctx, "missing")
 		return nil, err
 	}, []string{"missing"})
 	if err != nil {
@@ -168,7 +168,7 @@ func TestContainer_ProviderError(t *testing.T) {
 	c := New(&Config{})
 
 	expectedErr := errors.New("provider failed")
-	err := registerProvider(c, "failing", func(ctx context.Context, r Resolver) (any, error) {
+	err := registerProvider(c, "failing", func(ctx context.Context) (any, error) {
 		return nil, expectedErr
 	}, nil)
 	if err != nil {
@@ -188,7 +188,7 @@ func TestContainer_Singleton(t *testing.T) {
 	c := New(&Config{})
 
 	callCount := 0
-	err := registerProvider(c, "counter", func(ctx context.Context, r Resolver) (any, error) {
+	err := registerProvider(c, "counter", func(ctx context.Context) (any, error) {
 		callCount++
 		return callCount, nil
 	}, nil)
@@ -264,7 +264,7 @@ func TestContainer_Validate(t *testing.T) {
 	c := New(&Config{})
 
 	_ = registerValue(c, "config", "config")
-	_ = registerProvider(c, "service", func(ctx context.Context, r Resolver) (any, error) {
+	_ = registerProvider(c, "service", func(ctx context.Context) (any, error) {
 		return "service", nil
 	}, []string{"config"})
 
@@ -279,7 +279,7 @@ func TestContainer_ContextCancellation(t *testing.T) {
 
 	c := New(&Config{})
 
-	_ = registerProvider(c, "slow", func(ctx context.Context, r Resolver) (any, error) {
+	_ = registerProvider(c, "slow", func(ctx context.Context) (any, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -303,8 +303,8 @@ func TestContainer_ConcurrentResolve_NoFalseCycle(t *testing.T) {
 	c := New(&Config{})
 
 	_ = registerValue(c, "dep", "dependency")
-	_ = registerProvider(c, "svc", func(ctx context.Context, r Resolver) (any, error) {
-		_, _ = r.Resolve(ctx, "dep")
+	_ = registerProvider(c, "svc", func(ctx context.Context) (any, error) {
+		_, _ = c.Resolve(ctx, "dep")
 		return "service", nil
 	}, []string{"dep"})
 
@@ -336,7 +336,7 @@ func TestContainer_SingletonCalledOnce(t *testing.T) {
 	c := New(&Config{})
 
 	var callCount atomic.Int64
-	_ = registerProvider(c, "singleton", func(ctx context.Context, r Resolver) (any, error) {
+	_ = registerProvider(c, "singleton", func(ctx context.Context) (any, error) {
 		callCount.Add(1)
 		return "instance", nil
 	}, nil)
@@ -361,8 +361,8 @@ func BenchmarkContainer_Resolve(b *testing.B) {
 	c := New(&Config{})
 
 	_ = registerValue(c, "config", map[string]string{"key": "value"})
-	_ = registerProvider(c, "service", func(ctx context.Context, r Resolver) (any, error) {
-		_, _ = r.Resolve(ctx, "config")
+	_ = registerProvider(c, "service", func(ctx context.Context) (any, error) {
+		_, _ = c.Resolve(ctx, "config")
 		return "service", nil
 	}, []string{"config"})
 

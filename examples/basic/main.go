@@ -53,21 +53,21 @@ func main() {
 	}))
 
 	_ = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			return NewDatabase(cfg), nil
 		},
 	})
 
 	_ = needle.Register(c, needle.Spec[*UserRepository]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*UserRepository, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*UserRepository, error) {
 			db := needle.MustInvoke[*Database](c)
 			return NewUserRepository(db), nil
 		},
 	})
 
 	_ = needle.Register(c, needle.Spec[*UserService]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*UserService, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*UserService, error) {
 			repo := needle.MustInvoke[*UserRepository](c)
 			return NewUserService(repo), nil
 		},

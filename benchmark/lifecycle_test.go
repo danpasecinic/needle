@@ -74,7 +74,7 @@ func benchmarkLifecycleNeedle(b *testing.B, count int, parallel bool) {
 			key := fmt.Sprintf("svc_%d", j)
 			_ = needle.Register(c, needle.Spec[*Config]{
 				Name: key,
-				Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+				Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
 			})
@@ -102,7 +102,7 @@ func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool) {
 			key := fmt.Sprintf("svc_%d", j)
 			_ = needle.Register(c, needle.Spec[*Config]{
 				Name: key,
-				Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+				Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
 				OnStart: func(ctx context.Context) error {

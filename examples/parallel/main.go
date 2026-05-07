@@ -82,7 +82,7 @@ func registerProviders(c *needle.Container) {
 	_ = needle.Register(c, needle.SpecValue(&Config{Value: "config"}))
 
 	_ = needle.Register(c, needle.Spec[*DatabaseA]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*DatabaseA, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*DatabaseA, error) {
 			fmt.Printf("[%s] Starting DatabaseA...\n", timestamp())
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("[%s] DatabaseA ready\n", timestamp())
@@ -91,7 +91,7 @@ func registerProviders(c *needle.Container) {
 	})
 
 	_ = needle.Register(c, needle.Spec[*DatabaseB]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*DatabaseB, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*DatabaseB, error) {
 			fmt.Printf("[%s] Starting DatabaseB...\n", timestamp())
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("[%s] DatabaseB ready\n", timestamp())
@@ -100,7 +100,7 @@ func registerProviders(c *needle.Container) {
 	})
 
 	_ = needle.Register(c, needle.Spec[*CacheA]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*CacheA, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*CacheA, error) {
 			fmt.Printf("[%s] Starting CacheA...\n", timestamp())
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("[%s] CacheA ready\n", timestamp())
@@ -109,7 +109,7 @@ func registerProviders(c *needle.Container) {
 	})
 
 	_ = needle.Register(c, needle.Spec[*CacheB]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*CacheB, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*CacheB, error) {
 			fmt.Printf("[%s] Starting CacheB...\n", timestamp())
 			time.Sleep(100 * time.Millisecond)
 			fmt.Printf("[%s] CacheB ready\n", timestamp())
@@ -118,7 +118,7 @@ func registerProviders(c *needle.Container) {
 	})
 
 	_ = needle.Register(c, needle.Spec[*ServiceA]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*ServiceA, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*ServiceA, error) {
 			db := needle.MustInvoke[*DatabaseA](c)
 			cache := needle.MustInvoke[*CacheA](c)
 			fmt.Printf("[%s] Starting ServiceA...\n", timestamp())
@@ -130,7 +130,7 @@ func registerProviders(c *needle.Container) {
 	})
 
 	_ = needle.Register(c, needle.Spec[*ServiceB]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*ServiceB, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*ServiceB, error) {
 			db := needle.MustInvoke[*DatabaseB](c)
 			cache := needle.MustInvoke[*CacheB](c)
 			fmt.Printf("[%s] Starting ServiceB...\n", timestamp())
@@ -142,7 +142,7 @@ func registerProviders(c *needle.Container) {
 	})
 
 	_ = needle.Register(c, needle.Spec[*Gateway]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*Gateway, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*Gateway, error) {
 			svcA := needle.MustInvoke[*ServiceA](c)
 			svcB := needle.MustInvoke[*ServiceB](c)
 			fmt.Printf("[%s] Starting Gateway...\n", timestamp())

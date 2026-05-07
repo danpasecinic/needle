@@ -72,27 +72,27 @@ func BenchmarkInvoke_Chain_Needle(b *testing.B) {
 	_ = needle.Register(c, needle.SpecValue(&Config{Host: "localhost", Port: 8080}))
 	_ = needle.Register(c, needle.SpecValue(&Logger{Level: "info"}))
 	_ = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			log := needle.MustInvoke[*Logger](c)
 			return &Database{Config: cfg, Logger: log}, nil
 		},
 	})
 	_ = needle.Register(c, needle.Spec[*Cache]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Cache, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Cache, error) {
 			log := needle.MustInvoke[*Logger](c)
 			return &Cache{Logger: log}, nil
 		},
 	})
 	_ = needle.Register(c, needle.Spec[*Repository]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Repository, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Repository, error) {
 			db := needle.MustInvoke[*Database](c)
 			cache := needle.MustInvoke[*Cache](c)
 			return &Repository{DB: db, Cache: cache}, nil
 		},
 	})
 	_ = needle.Register(c, needle.Spec[*Service]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Service, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Service, error) {
 			repo := needle.MustInvoke[*Repository](c)
 			log := needle.MustInvoke[*Logger](c)
 			return &Service{Repo: repo, Logger: log}, nil
