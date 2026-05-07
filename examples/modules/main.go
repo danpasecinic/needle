@@ -71,30 +71,25 @@ var ServiceModule = needle.NewModule("service")
 
 func init() {
 	needle.ModuleRegister(DatabaseModule, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
-			cfg, _ := r.Resolve(ctx, "*main.Config")
-			logger, _ := r.Resolve(ctx, "*log/slog.Logger")
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			return &Database{
-				url:    cfg.(*Config).DatabaseURL,
-				logger: logger.(*slog.Logger),
+				url:    needle.MustInvoke[*Config](c).DatabaseURL,
+				logger: needle.MustInvoke[*slog.Logger](c),
 			}, nil
 		},
 	})
 
 	needle.ModuleRegister(CacheModule, needle.Spec[*Cache]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Cache, error) {
-			cfg, _ := r.Resolve(ctx, "*main.Config")
-			return &Cache{url: cfg.(*Config).CacheURL}, nil
+		Provider: func(ctx context.Context, c *needle.Container) (*Cache, error) {
+			return &Cache{url: needle.MustInvoke[*Config](c).CacheURL}, nil
 		},
 	})
 
 	needle.ModuleRegister(RepositoryModule, needle.Spec[*PostgresUserRepository]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepository, error) {
-			db, _ := r.Resolve(ctx, "*main.Database")
-			cache, _ := r.Resolve(ctx, "*main.Cache")
+		Provider: func(ctx context.Context, c *needle.Container) (*PostgresUserRepository, error) {
 			return &PostgresUserRepository{
-				db:    db.(*Database),
-				cache: cache.(*Cache),
+				db:    needle.MustInvoke[*Database](c),
+				cache: needle.MustInvoke[*Cache](c),
 			}, nil
 		},
 	})
@@ -102,12 +97,10 @@ func init() {
 	needle.ModuleRegister(RepositoryModule, needle.SpecFromBinding[UserRepository, *PostgresUserRepository]())
 
 	needle.ModuleRegister(ServiceModule, needle.Spec[*UserService]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*UserService, error) {
-			repo, _ := r.Resolve(ctx, "main.UserRepository")
-			logger, _ := r.Resolve(ctx, "*log/slog.Logger")
+		Provider: func(ctx context.Context, c *needle.Container) (*UserService, error) {
 			return &UserService{
-				repo:   repo.(UserRepository),
-				logger: logger.(*slog.Logger),
+				repo:   needle.MustInvoke[UserRepository](c),
+				logger: needle.MustInvoke[*slog.Logger](c),
 			}, nil
 		},
 	})

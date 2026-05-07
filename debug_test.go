@@ -29,7 +29,7 @@ func TestPrintGraph(t *testing.T) {
 
 	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	_ = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			_ = needle.MustInvoke[*Config](c)
 			return &Database{}, nil
 		},
@@ -70,7 +70,7 @@ func TestPrintGraphNotInstantiated(t *testing.T) {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*Config]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 			return &Config{Port: 8080}, nil
 		},
 	})
@@ -103,7 +103,7 @@ func TestPrintGraphDOT(t *testing.T) {
 
 	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	_ = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			return &Database{}, nil
 		},
 		Dependencies: []string{"*needle_test.Config"},
@@ -143,7 +143,7 @@ func TestGraphInfo(t *testing.T) {
 
 	_ = needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 	_ = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			return &Database{}, nil
 		},
 		Dependencies: []string{"*needle_test.Config"},

@@ -20,7 +20,7 @@ const (
 	StateStopped
 )
 
-type DecoratorFunc func(ctx context.Context, r Resolver, instance any) (any, error)
+type DecoratorFunc func(ctx context.Context, instance any) (any, error)
 
 type Container struct {
 	mu       sync.RWMutex

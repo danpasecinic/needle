@@ -52,27 +52,27 @@ func main() {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*SingletonCounter]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*SingletonCounter, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*SingletonCounter, error) {
 			return NewSingletonCounter(), nil
 		},
 	})
 
 	_ = needle.Register(c, needle.Spec[*TransientCounter]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*TransientCounter, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*TransientCounter, error) {
 			return NewTransientCounter(), nil
 		},
 		Scope: needle.Transient,
 	})
 
 	_ = needle.Register(c, needle.Spec[*RequestCounter]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*RequestCounter, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*RequestCounter, error) {
 			return NewRequestCounter(), nil
 		},
 		Scope: needle.Request,
 	})
 
 	_ = needle.Register(c, needle.Spec[*PooledConnection]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*PooledConnection, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*PooledConnection, error) {
 			return NewPooledConnection(), nil
 		},
 		Scope:    needle.Pooled,

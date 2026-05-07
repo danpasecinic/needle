@@ -81,7 +81,7 @@ func TestConcurrentPoolAcquireRelease(t *testing.T) {
 	var created atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(_ context.Context, _ Resolver) (*testCounter, error) {
+		Provider: func(_ context.Context, _ *Container) (*testCounter, error) {
 			return &testCounter{id: int(created.Add(1))}, nil
 		},
 		Scope:    Pooled,
@@ -132,7 +132,7 @@ func TestConcurrentTransientDifferentKeys(t *testing.T) {
 		idx := i
 		_ = Register(c, Spec[*concService]{
 			Name: fmt.Sprintf("t%d", idx),
-			Provider: func(_ context.Context, _ Resolver) (*concService, error) {
+			Provider: func(_ context.Context, _ *Container) (*concService, error) {
 				return &concService{id: idx}, nil
 			},
 			Scope: Transient,
@@ -164,7 +164,7 @@ func TestConcurrentRequestScopeIsolation(t *testing.T) {
 	var created atomic.Int32
 
 	_ = Register(c, Spec[*testCounter]{
-		Provider: func(_ context.Context, _ Resolver) (*testCounter, error) {
+		Provider: func(_ context.Context, _ *Container) (*testCounter, error) {
 			return &testCounter{id: int(created.Add(1))}, nil
 		},
 		Scope: Request,

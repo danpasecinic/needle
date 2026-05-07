@@ -48,7 +48,7 @@ func TestReplace(t *testing.T) {
 
 			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "v1"}))
 			_ = needle.Register(c, needle.Spec[*ReplaceService]{
-				Provider: func(ctx context.Context, r needle.Resolver) (*ReplaceService, error) {
+				Provider: func(ctx context.Context, c *needle.Container) (*ReplaceService, error) {
 					cfg := needle.MustInvoke[*ReplaceConfig](c)
 					return &ReplaceService{Config: cfg}, nil
 				},
@@ -62,7 +62,7 @@ func TestReplace(t *testing.T) {
 			_ = needle.Replace(c, needle.SpecValue(&ReplaceConfig{Value: "v2"}))
 
 			_ = needle.Replace(c, needle.Spec[*ReplaceService]{
-				Provider: func(ctx context.Context, r needle.Resolver) (*ReplaceService, error) {
+				Provider: func(ctx context.Context, c *needle.Container) (*ReplaceService, error) {
 					cfg := needle.MustInvoke[*ReplaceConfig](c)
 					return &ReplaceService{Config: cfg}, nil
 				},
@@ -145,7 +145,7 @@ func TestReplaceWithOptions(t *testing.T) {
 			_ = needle.Register(c, needle.SpecValue(&ReplaceConfig{Value: "singleton"}))
 
 			_ = needle.Replace(c, needle.Spec[*ReplaceConfig]{
-				Provider: func(ctx context.Context, r needle.Resolver) (*ReplaceConfig, error) {
+				Provider: func(ctx context.Context, c *needle.Container) (*ReplaceConfig, error) {
 					return &ReplaceConfig{Value: "transient"}, nil
 				},
 				Scope: needle.Transient,

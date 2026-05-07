@@ -104,21 +104,21 @@ func runWithAllDeps() {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*RedisCache]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*RedisCache, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*RedisCache, error) {
 			return NewRedisCache(), nil
 		},
 	})
 	_ = needle.Register(c, needle.SpecFromBinding[Cache, *RedisCache]())
 
 	_ = needle.Register(c, needle.Spec[*PrometheusMetrics]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*PrometheusMetrics, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*PrometheusMetrics, error) {
 			return &PrometheusMetrics{}, nil
 		},
 	})
 	_ = needle.Register(c, needle.SpecFromBinding[Metrics, *PrometheusMetrics]())
 
 	_ = needle.Register(c, needle.Spec[*UserService]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*UserService, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*UserService, error) {
 			cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 				func() Cache {
 					return NewInMemoryCache()
@@ -138,7 +138,7 @@ func runWithoutOptionalDeps() {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*UserService]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*UserService, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*UserService, error) {
 			cache := mustOptional(needle.InvokeOptional[Cache](c)).OrElseFunc(
 				func() Cache {
 					return NewInMemoryCache()

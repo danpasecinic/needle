@@ -17,7 +17,7 @@ The internal runtime state of a registered service: the spec's contents plus `sy
 _Avoid_: service record, entry (when ambiguous).
 
 **Provider**:
-A function `func(ctx, Resolver) (T, error)` that constructs an instance of `T`. One of the two things a `Spec[T]` can carry.
+A function `func(ctx, *Container) (T, error)` that constructs an instance of `T`. One of the two things a `Spec[T]` can carry. The container itself is what the provider receives -- there is no separate resolver indirection.
 _Avoid_: factory, constructor (constructor refers to plain Go constructor functions used by the autowire path).
 
 **Hook**:
@@ -27,10 +27,6 @@ _Avoid_: callback, listener, observer (observer is reserved for container-wide o
 **Scope**:
 When and how a service instance is reused: Singleton, Transient, Request, Pooled. A property of the spec; resolved differently per scope.
 _Avoid_: lifetime (overloaded with lifecycle), strategy.
-
-**Resolver**:
-The lookup interface a `Provider` uses to fetch dependencies during construction. In the deepened design this is the Container itself, not a separate adapter.
-_Avoid_: locator, injector.
 
 **Module**:
 A deferred recorder of typed registrations. `ModuleRegister[T](m, spec)` captures a closure that calls `Register[T]` against the container at `Apply` time. Modules carry no semantics beyond batched registration.

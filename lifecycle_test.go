@@ -19,7 +19,7 @@ func TestContainer_StartStop(t *testing.T) {
 	var startCount, stopCount atomic.Int32
 
 	err := Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
 		OnStart: func(ctx context.Context) error {
@@ -69,7 +69,7 @@ func TestContainer_StartOrder(t *testing.T) {
 	))
 
 	_ = Register(c, Spec[*testDatabase]{
-		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
+		Provider: func(ctx context.Context, c *Container) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
@@ -81,7 +81,7 @@ func TestContainer_StartOrder(t *testing.T) {
 	})
 
 	_ = Register(c, Spec[*testServer]{
-		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
+		Provider: func(ctx context.Context, c *Container) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
@@ -125,7 +125,7 @@ func TestContainer_StopOrder(t *testing.T) {
 	))
 
 	_ = Register(c, Spec[*testDatabase]{
-		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
+		Provider: func(ctx context.Context, c *Container) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
@@ -137,7 +137,7 @@ func TestContainer_StopOrder(t *testing.T) {
 	})
 
 	_ = Register(c, Spec[*testServer]{
-		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
+		Provider: func(ctx context.Context, c *Container) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
@@ -174,7 +174,7 @@ func TestContainer_StartError(t *testing.T) {
 	expectedErr := errors.New("start failed")
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
 		OnStart: func(ctx context.Context) error {
@@ -201,7 +201,7 @@ func TestContainer_StopError(t *testing.T) {
 	expectedErr := errors.New("stop failed")
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -226,7 +226,7 @@ func TestContainer_ComposedHooks(t *testing.T) {
 	var order []string
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
 		OnStart: Compose(
@@ -274,7 +274,7 @@ func TestContainer_Run(t *testing.T) {
 	var started, stopped atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
 		OnStart: func(ctx context.Context) error {
@@ -357,7 +357,7 @@ func TestContainer_LazyProvider(t *testing.T) {
 	var instantiated, started atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			instantiated.Store(true)
 			return &testService{name: "lazy"}, nil
 		},
@@ -403,7 +403,7 @@ func TestContainer_LazyProviderOnStartRunsOnce(t *testing.T) {
 	var startCount atomic.Int32
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
 		Lazy: true,
@@ -435,7 +435,7 @@ func TestContainer_LazyProviderStopHook(t *testing.T) {
 	var stopped atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
 		Lazy: true,
@@ -463,7 +463,7 @@ func TestContainer_LazyProviderNotInstantiatedNoStop(t *testing.T) {
 	var stopped atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
 		Lazy: true,
@@ -490,7 +490,7 @@ func TestContainer_LazyProviderBeforeStart(t *testing.T) {
 	var started atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "lazy"}, nil
 		},
 		Lazy: true,
@@ -525,7 +525,7 @@ func TestContainer_ShutdownTimeout(t *testing.T) {
 	var stopped atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "slow"}, nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -560,7 +560,7 @@ func TestContainer_ShutdownTimeoutNotSet(t *testing.T) {
 	var stopped atomic.Bool
 
 	_ = Register(c, Spec[*testService]{
-		Provider: func(ctx context.Context, r Resolver) (*testService, error) {
+		Provider: func(ctx context.Context, c *Container) (*testService, error) {
 			return &testService{name: "test"}, nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -601,7 +601,7 @@ func TestContainer_ParallelStartup(t *testing.T) {
 	))
 
 	_ = Register(c, Spec[*testDatabase]{
-		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
+		Provider: func(ctx context.Context, c *Container) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
@@ -615,7 +615,7 @@ func TestContainer_ParallelStartup(t *testing.T) {
 	})
 
 	_ = Register(c, Spec[*testServer]{
-		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
+		Provider: func(ctx context.Context, c *Container) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},
@@ -654,7 +654,7 @@ func TestContainer_ParallelStartupIndependent(t *testing.T) {
 	startTime := time.Now()
 
 	_ = Register(c, Spec[*testConfig]{
-		Provider: func(ctx context.Context, r Resolver) (*testConfig, error) {
+		Provider: func(ctx context.Context, c *Container) (*testConfig, error) {
 			return &testConfig{value: "a"}, nil
 		},
 		OnStart: func(ctx context.Context) error {
@@ -667,7 +667,7 @@ func TestContainer_ParallelStartupIndependent(t *testing.T) {
 	})
 
 	_ = Register(c, Spec[*testDatabase]{
-		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
+		Provider: func(ctx context.Context, c *Container) (*testDatabase, error) {
 			return &testDatabase{}, nil
 		},
 		OnStart: func(ctx context.Context) error {
@@ -680,7 +680,7 @@ func TestContainer_ParallelStartupIndependent(t *testing.T) {
 	})
 
 	_ = Register(c, Spec[*testServer]{
-		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
+		Provider: func(ctx context.Context, c *Container) (*testServer, error) {
 			return &testServer{}, nil
 		},
 		OnStart: func(ctx context.Context) error {
@@ -729,7 +729,7 @@ func TestContainer_ParallelShutdown(t *testing.T) {
 	))
 
 	_ = Register(c, Spec[*testDatabase]{
-		Provider: func(ctx context.Context, r Resolver) (*testDatabase, error) {
+		Provider: func(ctx context.Context, c *Container) (*testDatabase, error) {
 			_ = MustInvoke[*testConfig](c)
 			return &testDatabase{}, nil
 		},
@@ -743,7 +743,7 @@ func TestContainer_ParallelShutdown(t *testing.T) {
 	})
 
 	_ = Register(c, Spec[*testServer]{
-		Provider: func(ctx context.Context, r Resolver) (*testServer, error) {
+		Provider: func(ctx context.Context, c *Container) (*testServer, error) {
 			_ = MustInvoke[*testDatabase](c)
 			return &testServer{}, nil
 		},

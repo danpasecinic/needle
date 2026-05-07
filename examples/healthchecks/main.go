@@ -81,19 +81,19 @@ func main() {
 	c := needle.New()
 
 	_ = needle.Register(c, needle.Spec[*Database]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*Database, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*Database, error) {
 			return NewDatabase(), nil
 		},
 	})
 
 	_ = needle.Register(c, needle.Spec[*Cache]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*Cache, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*Cache, error) {
 			return NewCache(), nil
 		},
 	})
 
 	_ = needle.Register(c, needle.Spec[*MessageQueue]{
-		Provider: func(_ context.Context, _ needle.Resolver) (*MessageQueue, error) {
+		Provider: func(_ context.Context, _ *needle.Container) (*MessageQueue, error) {
 			return NewMessageQueue(), nil
 		},
 	})

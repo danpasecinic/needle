@@ -39,7 +39,7 @@ func TestModuleRegister(t *testing.T) {
 
 	module := needle.NewModule("config")
 	needle.ModuleRegister(module, needle.Spec[*Config]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Config, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 			return &Config{Port: 9000, Host: "module.local"}, nil
 		},
 	})
@@ -93,7 +93,7 @@ func TestModuleInclude(t *testing.T) {
 
 	dbModule := needle.NewModule("db")
 	needle.ModuleRegister(dbModule, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			return &Database{Config: cfg, Name: "testdb"}, nil
 		},
@@ -126,7 +126,7 @@ func TestModuleBinding(t *testing.T) {
 	module := needle.NewModule("repos")
 	needle.ModuleRegister(module, needle.SpecValue(&Database{Name: "postgres"}))
 	needle.ModuleRegister(module, needle.Spec[*PostgresUserRepo]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*PostgresUserRepo, error) {
 			db := needle.MustInvoke[*Database](c)
 			return &PostgresUserRepo{DB: db}, nil
 		},
@@ -156,11 +156,11 @@ func TestModuleDecorate(t *testing.T) {
 
 	module := needle.NewModule("logging")
 	needle.ModuleRegister(module, needle.Spec[*Logger]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Logger, error) {
 			return &Logger{Prefix: "app"}, nil
 		},
 	})
-	needle.ModuleDecorate(module, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
+	needle.ModuleDecorate(module, func(ctx context.Context, c *needle.Container, base *Logger) (*Logger, error) {
 		base.Prefix = "[" + base.Prefix + "]"
 		return base, nil
 	})
@@ -191,7 +191,7 @@ func TestSpecFromBinding(t *testing.T) {
 	}
 
 	err = needle.Register(c, needle.Spec[*PostgresUserRepo]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*PostgresUserRepo, error) {
 			db := needle.MustInvoke[*Database](c)
 			return &PostgresUserRepo{DB: db}, nil
 		},
@@ -226,7 +226,7 @@ func TestSpecFromBindingNamed(t *testing.T) {
 	}
 
 	err = needle.Register(c, needle.Spec[*PostgresUserRepo]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*PostgresUserRepo, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*PostgresUserRepo, error) {
 			db := needle.MustInvoke[*Database](c)
 			return &PostgresUserRepo{DB: db}, nil
 		},
@@ -256,7 +256,7 @@ func TestDecorate(t *testing.T) {
 	c := needle.New()
 
 	err := needle.Register(c, needle.Spec[*Logger]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Logger, error) {
 			return &Logger{Prefix: "base"}, nil
 		},
 	})
@@ -264,7 +264,7 @@ func TestDecorate(t *testing.T) {
 		t.Fatalf("Register failed: %v", err)
 	}
 
-	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
+	needle.Decorate(c, func(ctx context.Context, c *needle.Container, base *Logger) (*Logger, error) {
 		base.Prefix = "decorated:" + base.Prefix
 		return base, nil
 	})
@@ -285,7 +285,7 @@ func TestDecorateChain(t *testing.T) {
 	c := needle.New()
 
 	err := needle.Register(c, needle.Spec[*Logger]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Logger, error) {
 			return &Logger{Prefix: "core"}, nil
 		},
 	})
@@ -293,12 +293,12 @@ func TestDecorateChain(t *testing.T) {
 		t.Fatalf("Register failed: %v", err)
 	}
 
-	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
+	needle.Decorate(c, func(ctx context.Context, c *needle.Container, base *Logger) (*Logger, error) {
 		base.Prefix = "[1]" + base.Prefix
 		return base, nil
 	})
 
-	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
+	needle.Decorate(c, func(ctx context.Context, c *needle.Container, base *Logger) (*Logger, error) {
 		base.Prefix = "[2]" + base.Prefix
 		return base, nil
 	})
@@ -320,7 +320,7 @@ func TestDecorateNamed(t *testing.T) {
 
 	err := needle.Register(c, needle.Spec[*Logger]{
 		Name: "app",
-		Provider: func(ctx context.Context, r needle.Resolver) (*Logger, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Logger, error) {
 			return &Logger{Prefix: "app"}, nil
 		},
 	})
@@ -328,7 +328,7 @@ func TestDecorateNamed(t *testing.T) {
 		t.Fatalf("Register failed: %v", err)
 	}
 
-	needle.DecorateNamed(c, "app", func(ctx context.Context, r needle.Resolver, base *Logger) (*Logger, error) {
+	needle.DecorateNamed(c, "app", func(ctx context.Context, c *needle.Container, base *Logger) (*Logger, error) {
 		base.Prefix = "named:" + base.Prefix
 		return base, nil
 	})
@@ -353,7 +353,7 @@ func TestMultipleModules(t *testing.T) {
 
 	dbModule := needle.NewModule("db")
 	needle.ModuleRegister(dbModule, needle.Spec[*Database]{
-		Provider: func(ctx context.Context, r needle.Resolver) (*Database, error) {
+		Provider: func(ctx context.Context, c *needle.Container) (*Database, error) {
 			cfg := needle.MustInvoke[*Config](c)
 			return &Database{Config: cfg, Name: "app-db"}, nil
 		},

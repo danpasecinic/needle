@@ -16,7 +16,7 @@ func TestStopService_OnStopErrorPropagates(t *testing.T) {
 
 	_ = c.Register(NewServiceEntry(EntryConfig{
 		Key: "svc",
-		Provider: func(ctx context.Context, r Resolver) (any, error) {
+		Provider: func(ctx context.Context) (any, error) {
 			return "instance", nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -44,7 +44,7 @@ func TestStopService_NoErrorWhenHookSucceeds(t *testing.T) {
 
 	_ = c.Register(NewServiceEntry(EntryConfig{
 		Key: "svc",
-		Provider: func(ctx context.Context, r Resolver) (any, error) {
+		Provider: func(ctx context.Context) (any, error) {
 			return "instance", nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -70,7 +70,7 @@ func TestStartAndStop_Integration(t *testing.T) {
 
 	_ = c.Register(NewServiceEntry(EntryConfig{
 		Key: "svc",
-		Provider: func(ctx context.Context, r Resolver) (any, error) {
+		Provider: func(ctx context.Context) (any, error) {
 			return "instance", nil
 		},
 		OnStart: func(ctx context.Context) error {

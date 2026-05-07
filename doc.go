@@ -15,7 +15,7 @@
 //	needle.Register(c, needle.SpecValue(&Config{Port: 8080}))
 //
 //	needle.Register(c, needle.Spec[*Server]{
-//	    Provider: func(ctx context.Context, r needle.Resolver) (*Server, error) {
+//	    Provider: func(ctx context.Context, c *needle.Container) (*Server, error) {
 //	        cfg := needle.MustInvoke[*Config](c)
 //	        return &Server{config: cfg}, nil
 //	    },
@@ -165,7 +165,7 @@
 //
 // Wrap services with cross-cutting concerns:
 //
-//	needle.Decorate(c, func(ctx context.Context, r needle.Resolver, log *Logger) (*Logger, error) {
+//	needle.Decorate(c, func(ctx context.Context, c *needle.Container, log *Logger) (*Logger, error) {
 //	    return log.Named("app"), nil
 //	})
 //
