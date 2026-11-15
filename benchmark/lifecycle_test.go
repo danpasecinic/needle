@@ -69,14 +69,15 @@ func benchmarkLifecycleNeedle(b *testing.B, count int, parallel bool) {
 		}
 		c := needle.New(opts...)
 
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = needle.ProvideNamed(
-				c, key, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			_ = needle.Register(c, needle.Spec[*Config]{
+				Name: key,
+				Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
-			)
+			})
 		}
 
 		ctx := context.Background()
@@ -96,26 +97,23 @@ func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool) {
 		}
 		c := needle.New(opts...)
 
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
-			_ = needle.ProvideNamed(
-				c, key, func(ctx context.Context, r needle.Resolver) (*Config, error) {
+			_ = needle.Register(c, needle.Spec[*Config]{
+				Name: key,
+				Provider: func(ctx context.Context, c *needle.Container) (*Config, error) {
 					return &Config{Port: idx}, nil
 				},
-				needle.WithOnStart(
-					func(ctx context.Context) error {
-						time.Sleep(time.Millisecond)
-						return nil
-					},
-				),
-				needle.WithOnStop(
-					func(ctx context.Context) error {
-						time.Sleep(time.Millisecond)
-						return nil
-					},
-				),
-			)
+				OnStart: func(ctx context.Context) error {
+					time.Sleep(time.Millisecond)
+					return nil
+				},
+				OnStop: func(ctx context.Context) error {
+					time.Sleep(time.Millisecond)
+					return nil
+				},
+			})
 		}
 
 		ctx := context.Background()
@@ -130,7 +128,7 @@ func benchmarkLifecycleFx(b *testing.B, count int) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		providers := make([]fx.Option, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			name := fmt.Sprintf("svc_%d", j)
 			providers[j] = fx.Provide(
@@ -142,7 +140,7 @@ func benchmarkLifecycleFx(b *testing.B, count int) {
 		}
 
 		invokers := make([]any, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			name := fmt.Sprintf("svc_%d", j)
 			invokers[j] = fx.Annotate(
 				func(*Config) {},
@@ -166,7 +164,7 @@ func benchmarkLifecycleFxWithWork(b *testing.B, count int, work time.Duration) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		providers := make([]fx.Option, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			name := fmt.Sprintf("svc_%d", j)
 			providers[j] = fx.Provide(
@@ -193,7 +191,7 @@ func benchmarkLifecycleFxWithWork(b *testing.B, count int, work time.Duration) {
 		}
 
 		invokers := make([]any, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			name := fmt.Sprintf("svc_%d", j)
 			invokers[j] = fx.Annotate(
 				func(*Config) {},

@@ -51,43 +51,44 @@ func NewPooledConnection() *PooledConnection {
 func main() {
 	c := needle.New()
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*SingletonCounter, error) {
+	_ = needle.Register(c, needle.Spec[*SingletonCounter]{
+		Provider: func(_ context.Context, _ *needle.Container) (*SingletonCounter, error) {
 			return NewSingletonCounter(), nil
 		},
-	)
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*TransientCounter, error) {
+	_ = needle.Register(c, needle.Spec[*TransientCounter]{
+		Provider: func(_ context.Context, _ *needle.Container) (*TransientCounter, error) {
 			return NewTransientCounter(), nil
 		},
-		needle.WithScope(needle.Transient),
-	)
+		Scope: needle.Transient,
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*RequestCounter, error) {
+	_ = needle.Register(c, needle.Spec[*RequestCounter]{
+		Provider: func(_ context.Context, _ *needle.Container) (*RequestCounter, error) {
 			return NewRequestCounter(), nil
 		},
-		needle.WithScope(needle.Request),
-	)
+		Scope: needle.Request,
+	})
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*PooledConnection, error) {
+	_ = needle.Register(c, needle.Spec[*PooledConnection]{
+		Provider: func(_ context.Context, _ *needle.Container) (*PooledConnection, error) {
 			return NewPooledConnection(), nil
 		},
-		needle.WithPoolSize(3),
-	)
+		Scope:    needle.Pooled,
+		PoolSize: 3,
+	})
 
 	fmt.Println("=== Singleton Scope ===")
 	fmt.Println("Same instance returned every time:")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		s := needle.MustInvoke[*SingletonCounter](c)
 		fmt.Printf("  Invoke %d: instance ID = %d\n", i+1, s.id)
 	}
 
 	fmt.Println("\n=== Transient Scope ===")
 	fmt.Println("New instance returned every time:")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		t := needle.MustInvoke[*TransientCounter](c)
 		fmt.Printf("  Invoke %d: instance ID = %d\n", i+1, t.id)
 	}
@@ -98,7 +99,7 @@ func main() {
 	for req := 1; req <= 2; req++ {
 		ctx := needle.WithRequestScope(context.Background())
 		fmt.Printf("  Request %d:\n", req)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			r, _ := needle.InvokeCtx[*RequestCounter](ctx, c)
 			fmt.Printf("    Invoke %d: instance ID = %d\n", i+1, r.id)
 		}
@@ -107,8 +108,8 @@ func main() {
 	fmt.Println("\n=== Pooled Scope ===")
 	fmt.Println("Reuses instances from a pool:")
 
-	var connections []*PooledConnection
-	for i := 0; i < 3; i++ {
+	connections := make([]*PooledConnection, 0, 3)
+	for range 3 {
 		conn := needle.MustInvoke[*PooledConnection](c)
 		connections = append(connections, conn)
 		fmt.Printf("  Acquired: instance ID = %d\n", conn.id)
@@ -120,7 +121,7 @@ func main() {
 	}
 
 	fmt.Println("  Acquiring again (should reuse from pool):")
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		conn := needle.MustInvoke[*PooledConnection](c)
 		fmt.Printf("  Acquired: instance ID = %d\n", conn.id)
 	}

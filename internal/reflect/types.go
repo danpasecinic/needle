@@ -3,6 +3,7 @@ package reflect
 import (
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -10,12 +11,7 @@ var typeKeyCache sync.Map
 var namedKeyCache sync.Map
 
 func TypeKey[T any]() string {
-	var zero T
-	t := reflect.TypeOf(zero)
-	if t == nil {
-		t = reflect.TypeFor[T]()
-	}
-	return typeKeyFromReflect(t)
+	return typeKeyFromReflect(reflect.TypeFor[T]())
 }
 
 type namedKey struct {
@@ -74,11 +70,7 @@ func TypeKeyFromValue(v any) string {
 }
 
 func TypeKeyNamed[T any](name string) string {
-	var zero T
-	t := reflect.TypeOf(zero)
-	if t == nil {
-		t = reflect.TypeFor[T]()
-	}
+	t := reflect.TypeFor[T]()
 
 	key := namedKey{t: t, name: name}
 	if cached, ok := namedKeyCache.Load(key); ok {
@@ -109,12 +101,7 @@ func IsNil(v any) bool {
 }
 
 func TypeName[T any]() string {
-	var zero T
-	t := reflect.TypeOf(zero)
-	if t == nil {
-		t = reflect.TypeFor[T]()
-	}
-	return t.String()
+	return reflect.TypeFor[T]().String()
 }
 
 func IsInterface[T any]() bool {
@@ -148,8 +135,7 @@ func StructFields[T any](tagKey string) ([]FieldInfo, error) {
 	}
 
 	var fields []FieldInfo
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		tag, ok := field.Tag.Lookup(tagKey)
 		if !ok {
 			continue
@@ -158,17 +144,16 @@ func StructFields[T any](tagKey string) ([]FieldInfo, error) {
 		info := FieldInfo{
 			Name:    field.Name,
 			TypeKey: typeKeyFromReflect(field.Type),
-			Index:   i,
+			Index:   field.Index[0],
 		}
 
-		if tag != "" {
-			parts := splitTag(tag)
-			for _, part := range parts {
-				if part == "optional" {
-					info.Optional = true
-				} else if part != "" {
-					info.Named = part
-				}
+		for part := range strings.SplitSeq(tag, ",") {
+			switch part {
+			case "":
+			case "optional":
+				info.Optional = true
+			default:
+				info.Named = part
 			}
 		}
 
@@ -176,23 +161,6 @@ func StructFields[T any](tagKey string) ([]FieldInfo, error) {
 	}
 
 	return fields, nil
-}
-
-func splitTag(tag string) []string {
-	var parts []string
-	current := ""
-	for _, c := range tag {
-		if c == ',' {
-			parts = append(parts, current)
-			current = ""
-		} else {
-			current += string(c)
-		}
-	}
-	if current != "" {
-		parts = append(parts, current)
-	}
-	return parts
 }
 
 type FuncParamInfo struct {
@@ -207,8 +175,8 @@ func FuncParams(fn any) ([]FuncParamInfo, reflect.Type, error) {
 		return nil, nil, nil
 	}
 
-	var params []FuncParamInfo
-	for i := 0; i < t.NumIn(); i++ {
+	params := make([]FuncParamInfo, 0, t.NumIn())
+	for i := range t.NumIn() {
 		paramType := t.In(i)
 		params = append(
 			params, FuncParamInfo{

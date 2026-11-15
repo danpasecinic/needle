@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -12,7 +11,7 @@ func (c *Container) Start(ctx context.Context) error {
 	c.mu.Lock()
 	if c.state != StateNew && c.state != StateStopped {
 		c.mu.Unlock()
-		return fmt.Errorf("container already started")
+		return ErrContainerStateChange
 	}
 	c.state = StateStarting
 	c.mu.Unlock()
@@ -78,13 +77,11 @@ func (c *Container) startGroup(ctx context.Context, keys []string) error {
 			continue
 		}
 
-		wg.Add(1)
-		go func(k string) {
-			defer wg.Done()
-			if err := c.startService(ctx, k); err != nil {
+		wg.Go(func() {
+			if err := c.startService(ctx, key); err != nil {
 				errCh <- err
 			}
-		}(key)
+		})
 	}
 
 	wg.Wait()
@@ -112,12 +109,10 @@ func (c *Container) startService(ctx context.Context, key string) error {
 	}
 
 	var startErr error
-	hooks := c.registry.GetOnStartHooks(key)
-	for _, hook := range hooks {
+	if entry, ok := c.registry.GetEntry(key); ok && entry.OnStart != nil {
 		c.logger.Debug("running OnStart hook", "service", key)
-		if err := hook(ctx); err != nil {
+		if err := entry.OnStart(ctx); err != nil {
 			startErr = fmt.Errorf("OnStart hook failed for %s: %w", key, err)
-			break
 		}
 	}
 
@@ -215,15 +210,13 @@ func (c *Container) stopGroup(ctx context.Context, keys []string) []error {
 			continue
 		}
 
-		wg.Add(1)
-		go func(k string) {
-			defer wg.Done()
-			if err := c.stopService(ctx, k); err != nil {
+		wg.Go(func() {
+			if err := c.stopService(ctx, key); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-		}(key)
+		})
 	}
 
 	wg.Wait()
@@ -237,17 +230,15 @@ func (c *Container) stopService(ctx context.Context, key string) error {
 	}
 
 	start := time.Now()
-	var errs []error
+	var stopErr error
 
-	hooks := c.registry.GetOnStopHooks(key)
-	for i := len(hooks) - 1; i >= 0; i-- {
+	if entry.OnStop != nil {
 		c.logger.Debug("running OnStop hook", "service", key)
-		if err := hooks[i](ctx); err != nil {
-			errs = append(errs, fmt.Errorf("OnStop hook failed for %s: %w", key, err))
+		if err := entry.OnStop(ctx); err != nil {
+			stopErr = fmt.Errorf("OnStop hook failed for %s: %w", key, err)
 		}
 	}
 
-	stopErr := errors.Join(errs...)
 	c.callStopHooks(key, time.Since(start), stopErr)
 	return stopErr
 }

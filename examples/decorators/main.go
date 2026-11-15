@@ -72,18 +72,18 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	c := needle.New()
 
-	_ = needle.ProvideValue(c, logger)
+	_ = needle.Register(c, needle.SpecValue(logger))
 
-	_ = needle.Provide(
-		c, func(_ context.Context, _ needle.Resolver) (*PostgresUserRepository, error) {
+	_ = needle.Register(c, needle.Spec[*PostgresUserRepository]{
+		Provider: func(_ context.Context, _ *needle.Container) (*PostgresUserRepository, error) {
 			return &PostgresUserRepository{}, nil
 		},
-	)
+	})
 
-	_ = needle.Bind[UserRepository, *PostgresUserRepository](c)
+	_ = needle.Register(c, needle.SpecFromBinding[UserRepository, *PostgresUserRepository]())
 
 	needle.Decorate(
-		c, func(_ context.Context, _ needle.Resolver, repo UserRepository) (UserRepository, error) {
+		c, func(_ context.Context, _ *needle.Container, repo UserRepository) (UserRepository, error) {
 			log := needle.MustInvoke[*slog.Logger](c)
 			fmt.Println("Applying logging decorator...")
 			return &LoggingRepository{inner: repo, logger: log}, nil
@@ -91,14 +91,14 @@ func main() {
 	)
 
 	needle.Decorate(
-		c, func(_ context.Context, _ needle.Resolver, repo UserRepository) (UserRepository, error) {
+		c, func(_ context.Context, _ *needle.Container, repo UserRepository) (UserRepository, error) {
 			fmt.Println("Applying metrics decorator...")
 			return &MetricsRepository{inner: repo}, nil
 		},
 	)
 
 	needle.Decorate(
-		c, func(_ context.Context, _ needle.Resolver, repo UserRepository) (UserRepository, error) {
+		c, func(_ context.Context, _ *needle.Container, repo UserRepository) (UserRepository, error) {
 			fmt.Println("Applying caching decorator...")
 			return &CachingRepository{inner: repo, cache: make(map[int]string)}, nil
 		},
