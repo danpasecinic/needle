@@ -1,5 +1,7 @@
 package graph
 
+import "slices"
+
 type CycleDetector struct {
 	graph   *Graph
 	index   int
@@ -40,11 +42,8 @@ func (g *Graph) detectCyclesUnsafe() [][]string {
 			cycles = append(cycles, scc)
 		} else if len(scc) == 1 {
 			id := scc[0]
-			for _, dep := range g.edges[id] {
-				if dep == id {
-					cycles = append(cycles, scc)
-					break
-				}
+			if slices.Contains(g.edges[id], id) {
+				cycles = append(cycles, scc)
 			}
 		}
 	}

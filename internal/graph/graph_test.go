@@ -395,7 +395,7 @@ func TestGraph_GetAllCyclePaths_ConcurrentNoDeadlock(t *testing.T) {
 
 func BenchmarkGraph_DetectCycles(b *testing.B) {
 	g := New()
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		var deps []string
 		if i > 0 {
 			deps = []string{string(rune('A' + i - 1))}
@@ -412,7 +412,7 @@ func BenchmarkGraph_DetectCycles(b *testing.B) {
 
 func BenchmarkGraph_TopologicalSort(b *testing.B) {
 	g := New()
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		var deps []string
 		if i > 0 {
 			deps = []string{string(rune('A' + i - 1))}

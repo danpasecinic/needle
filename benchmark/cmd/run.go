@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -67,8 +68,7 @@ func main() {
 	cmd.Dir = benchDir
 	output, err := cmd.Output()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			fmt.Fprintf(os.Stderr, "Benchmark failed: %s\n", string(exitErr.Stderr))
 		}
 		os.Exit(1)
@@ -194,11 +194,7 @@ func groupByCategory(results []BenchmarkResult) []CategoryResults {
 
 	for _, catKey := range categoryOrder {
 		if results, ok := groups[catKey]; ok {
-			sort.Slice(
-				results, func(i, j int) bool {
-					return results[i].NsPerOp < results[j].NsPerOp
-				},
-			)
+			slices.SortFunc(results, byNsPerOp)
 			ordered = append(
 				ordered, CategoryResults{
 					Category: catKey,
@@ -209,19 +205,8 @@ func groupByCategory(results []BenchmarkResult) []CategoryResults {
 	}
 
 	for key, results := range groups {
-		found := false
-		for _, o := range categoryOrder {
-			if o == key {
-				found = true
-				break
-			}
-		}
-		if !found {
-			sort.Slice(
-				results, func(i, j int) bool {
-					return results[i].NsPerOp < results[j].NsPerOp
-				},
-			)
+		if !slices.Contains(categoryOrder, key) {
+			slices.SortFunc(results, byNsPerOp)
 			ordered = append(
 				ordered, CategoryResults{
 					Category: key,
@@ -353,9 +338,9 @@ func printSummary(groups []CategoryResults, markdown bool) {
 	for name, count := range wins {
 		sorted = append(sorted, frameworkWins{name, count})
 	}
-	sort.Slice(
-		sorted, func(i, j int) bool {
-			return sorted[i].wins > sorted[j].wins
+	slices.SortFunc(
+		sorted, func(a, b frameworkWins) int {
+			return cmp.Compare(b.wins, a.wins)
 		},
 	)
 
@@ -431,4 +416,8 @@ func exportJSON(results []BenchmarkResult) {
 	data, _ := json.MarshalIndent(output, "", "  ")
 	_ = os.WriteFile("benchmark_results.json", data, 0644)
 	fmt.Println("\033[2mResults exported to benchmark_results.json\033[0m")
+}
+
+func byNsPerOp(a, b BenchmarkResult) int {
+	return cmp.Compare(a.NsPerOp, b.NsPerOp)
 }

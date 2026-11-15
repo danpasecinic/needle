@@ -1,6 +1,9 @@
 package graph
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 type Node struct {
 	ID           string
@@ -100,11 +103,8 @@ func (g *Graph) GetDependents(id string) []string {
 
 	var dependents []string
 	for nodeID, deps := range g.edges {
-		for _, dep := range deps {
-			if dep == id {
-				dependents = append(dependents, nodeID)
-				break
-			}
+		if slices.Contains(deps, id) {
+			dependents = append(dependents, nodeID)
 		}
 	}
 	return dependents

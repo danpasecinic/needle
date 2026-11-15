@@ -96,16 +96,13 @@ func (c *Container) runChecks(ctx context.Context, extractCheck func(any) func(c
 			continue
 		}
 
-		wg.Add(1)
-		go func(k string, fn func(context.Context) error) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			start := time.Now()
-			err := fn(ctx)
+			err := check(ctx)
 			latency := time.Since(start)
 
 			report := HealthReport{
-				Name:    k,
+				Name:    key,
 				Latency: latency,
 			}
 
@@ -119,7 +116,7 @@ func (c *Container) runChecks(ctx context.Context, extractCheck func(any) func(c
 			mu.Lock()
 			reports = append(reports, report)
 			mu.Unlock()
-		}(key, check)
+		})
 	}
 
 	wg.Wait()
