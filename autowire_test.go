@@ -3,6 +3,7 @@ package needle_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/danpasecinic/needle"
@@ -299,4 +300,17 @@ func TestSpecFromConstructor_InvalidConstructor(t *testing.T) {
 	}()
 
 	_ = needle.SpecFromConstructor[*TestLogger]("not a function")
+}
+
+type testGreeter interface {
+	Greet() string
+}
+
+func TestInvokeStruct_InterfaceTypeReturnsError(t *testing.T) {
+	c := needle.New()
+
+	_, err := needle.InvokeStruct[testGreeter](c)
+	if err == nil || !strings.Contains(err.Error(), "interface") {
+		t.Fatalf("expected interface type error, got %v", err)
+	}
 }

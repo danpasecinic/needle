@@ -21,7 +21,7 @@ func InvokeStructCtx[T any](ctx context.Context, c *Container) (T, error) {
 func resolveStruct[T any](ctx context.Context, c *Container) (T, error) {
 	var zero T
 
-	t := reflectPkg.TypeOf(zero)
+	t := reflectPkg.TypeFor[T]()
 	isPtr := t.Kind() == reflectPkg.Pointer
 	if isPtr {
 		t = t.Elem()
@@ -96,7 +96,7 @@ func buildFuncProvider[T any](constructor any) (Provider[T], []string, error) {
 		return nil, nil, fmt.Errorf("constructor must return at least one value")
 	}
 
-	expectedType := reflectPkg.TypeOf((*T)(nil)).Elem()
+	expectedType := reflectPkg.TypeFor[T]()
 	if !returnType.AssignableTo(expectedType) {
 		return nil, nil, fmt.Errorf("constructor returns %s, expected %s", returnType, expectedType)
 	}
