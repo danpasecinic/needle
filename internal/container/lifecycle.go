@@ -77,13 +77,11 @@ func (c *Container) startGroup(ctx context.Context, keys []string) error {
 			continue
 		}
 
-		wg.Add(1)
-		go func(k string) {
-			defer wg.Done()
-			if err := c.startService(ctx, k); err != nil {
+		wg.Go(func() {
+			if err := c.startService(ctx, key); err != nil {
 				errCh <- err
 			}
-		}(key)
+		})
 	}
 
 	wg.Wait()
@@ -212,15 +210,13 @@ func (c *Container) stopGroup(ctx context.Context, keys []string) []error {
 			continue
 		}
 
-		wg.Add(1)
-		go func(k string) {
-			defer wg.Done()
-			if err := c.stopService(ctx, k); err != nil {
+		wg.Go(func() {
+			if err := c.stopService(ctx, key); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-		}(key)
+		})
 	}
 
 	wg.Wait()

@@ -135,7 +135,7 @@ func benchmarkStartup(b *testing.B, parallel bool, count int, workDuration time.
 			c = New()
 		}
 
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
 			_ = Register(c, Spec[*benchService]{
@@ -172,7 +172,7 @@ func benchmarkShutdown(b *testing.B, parallel bool, count int, workDuration time
 			c = New()
 		}
 
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
 			_ = Register(c, Spec[*benchService]{
@@ -213,7 +213,7 @@ func benchmarkDependencyChain(b *testing.B, parallel bool, depth int, workDurati
 		}
 
 		prevKey := ""
-		for j := 0; j < depth; j++ {
+		for j := range depth {
 			level := j
 			key := fmt.Sprintf("chain_%d", j)
 			var deps []string
@@ -269,7 +269,7 @@ func benchmarkWideDependencies(b *testing.B, parallel bool, width int, workDurat
 		}
 
 		depKeys := make([]string, width)
-		for j := 0; j < width; j++ {
+		for j := range width {
 			idx := j
 			key := fmt.Sprintf("wide_%d", j)
 			depKeys[j] = key

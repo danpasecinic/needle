@@ -168,26 +168,26 @@ func IsDuplicateService(err error) bool {
 }
 
 func IsResolutionFailed(err error) bool {
-	var e *Error
-	return errors.As(err, &e) && e.Code == ErrCodeResolutionFailed
+	return hasErrorCode(err, ErrCodeResolutionFailed)
 }
 
 func IsProviderFailed(err error) bool {
-	var e *Error
-	return errors.As(err, &e) && e.Code == ErrCodeProviderFailed
+	return hasErrorCode(err, ErrCodeProviderFailed)
 }
 
 func IsStartupFailed(err error) bool {
-	var e *Error
-	return errors.As(err, &e) && e.Code == ErrCodeStartupFailed
+	return hasErrorCode(err, ErrCodeStartupFailed)
 }
 
 func IsShutdownFailed(err error) bool {
-	var e *Error
-	return errors.As(err, &e) && e.Code == ErrCodeShutdownFailed
+	return hasErrorCode(err, ErrCodeShutdownFailed)
 }
 
 func IsHealthCheckFailed(err error) bool {
-	var e *Error
-	return errors.As(err, &e) && e.Code == ErrCodeHealthCheckFailed
+	return hasErrorCode(err, ErrCodeHealthCheckFailed)
+}
+
+func hasErrorCode(err error, code ErrorCode) bool {
+	e, ok := errors.AsType[*Error](err)
+	return ok && e.Code == code
 }

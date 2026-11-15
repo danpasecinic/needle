@@ -20,17 +20,15 @@ func TestConcurrentSingletonResolve(t *testing.T) {
 	results := make([]*testCounter, n)
 
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := range n {
-		go func(idx int) {
-			defer wg.Done()
+	for idx := range n {
+		wg.Go(func() {
 			val, err := Invoke[*testCounter](c)
 			if err != nil {
 				t.Errorf("goroutine %d: %v", idx, err)
 				return
 			}
 			results[idx] = val
-		}(i)
+		})
 	}
 	wg.Wait()
 
@@ -48,19 +46,15 @@ func TestConcurrentNamedRegisterAndInvoke(t *testing.T) {
 	const n = 50
 
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := range n {
-		go func(idx int) {
-			defer wg.Done()
+	for idx := range n {
+		wg.Go(func() {
 			_ = Register(c, SpecValue(&concService{id: idx}).WithName(fmt.Sprintf("s%d", idx)))
-		}(i)
+		})
 	}
 	wg.Wait()
 
-	wg.Add(n)
-	for i := range n {
-		go func(idx int) {
-			defer wg.Done()
+	for idx := range n {
+		wg.Go(func() {
 			val, err := InvokeNamed[*concService](c, fmt.Sprintf("s%d", idx))
 			if err != nil {
 				t.Errorf("invoke s%d: %v", idx, err)
@@ -69,7 +63,7 @@ func TestConcurrentNamedRegisterAndInvoke(t *testing.T) {
 			if val.id != idx {
 				t.Errorf("s%d: expected id %d, got %d", idx, idx, val.id)
 			}
-		}(i)
+		})
 	}
 	wg.Wait()
 }
@@ -104,16 +98,14 @@ func TestConcurrentPoolAcquireRelease(t *testing.T) {
 
 	const n = 20
 	var wg sync.WaitGroup
-	wg.Add(n)
 	for range n {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			inst, err := Invoke[*testCounter](c)
 			if err != nil {
 				return
 			}
 			c.Release(key, inst)
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -140,10 +132,8 @@ func TestConcurrentTransientDifferentKeys(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := range n {
-		go func(idx int) {
-			defer wg.Done()
+	for idx := range n {
+		wg.Go(func() {
 			val, err := InvokeNamed[*concService](c, fmt.Sprintf("t%d", idx))
 			if err != nil {
 				t.Errorf("t%d: %v", idx, err)
@@ -152,7 +142,7 @@ func TestConcurrentTransientDifferentKeys(t *testing.T) {
 			if val == nil {
 				t.Errorf("t%d: got nil", idx)
 			}
-		}(i)
+		})
 	}
 	wg.Wait()
 }
@@ -206,16 +196,14 @@ func TestConcurrentReplaceNoRace(t *testing.T) {
 
 	const n = 50
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := range n {
-		go func(idx int) {
-			defer wg.Done()
+	for idx := range n {
+		wg.Go(func() {
 			if idx%2 == 0 {
 				_ = Replace(c, SpecValue(&testCounter{id: idx}))
 			} else {
 				_, _ = Invoke[*testCounter](c)
 			}
-		}(i)
+		})
 	}
 	wg.Wait()
 }

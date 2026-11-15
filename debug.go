@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -22,7 +22,7 @@ type ServiceInfo struct {
 
 func (c *Container) Graph() GraphInfo {
 	keys := c.internal.Keys()
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	graph := c.internal.Graph()
 	services := make([]ServiceInfo, 0, len(keys))
@@ -116,8 +116,8 @@ func (c *Container) SprintGraphDOT() string {
 
 func escapeLabel(s string) string {
 	s = strings.ReplaceAll(s, "*", "")
-	if idx := strings.LastIndex(s, "/"); idx != -1 {
-		s = s[idx+1:]
+	if _, name, found := strings.CutLast(s, "/"); found {
+		return name
 	}
 	return s
 }

@@ -2,6 +2,8 @@ package container
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/danpasecinic/needle/internal/scope"
@@ -133,11 +135,7 @@ func (r *Registry) Keys() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	keys := make([]string, 0, len(r.services))
-	for key := range r.services {
-		keys = append(keys, key)
-	}
-	return keys
+	return slices.AppendSeq(make([]string, 0, len(r.services)), maps.Keys(r.services))
 }
 
 func (r *Registry) Size() int {
@@ -199,11 +197,7 @@ func (r *Registry) AllEntries() []*ServiceEntry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	entries := make([]*ServiceEntry, 0, len(r.services))
-	for _, entry := range r.services {
-		entries = append(entries, entry)
-	}
-	return entries
+	return slices.AppendSeq(make([]*ServiceEntry, 0, len(r.services)), maps.Values(r.services))
 }
 
 func (r *Registry) IsLazy(key string) bool {

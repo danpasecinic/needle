@@ -312,14 +312,12 @@ func TestContainer_ConcurrentResolve_NoFalseCycle(t *testing.T) {
 	errs := make(chan error, 50)
 
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, err := c.Resolve(context.Background(), "svc")
 			if err != nil {
 				errs <- err
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -343,11 +341,9 @@ func TestContainer_SingletonCalledOnce(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, _ = c.Resolve(context.Background(), "singleton")
-		}()
+		})
 	}
 
 	wg.Wait()

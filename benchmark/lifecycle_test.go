@@ -69,7 +69,7 @@ func benchmarkLifecycleNeedle(b *testing.B, count int, parallel bool) {
 		}
 		c := needle.New(opts...)
 
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
 			_ = needle.Register(c, needle.Spec[*Config]{
@@ -97,7 +97,7 @@ func benchmarkLifecycleNeedleWithWork(b *testing.B, count int, parallel bool) {
 		}
 		c := needle.New(opts...)
 
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			key := fmt.Sprintf("svc_%d", j)
 			_ = needle.Register(c, needle.Spec[*Config]{
@@ -128,7 +128,7 @@ func benchmarkLifecycleFx(b *testing.B, count int) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		providers := make([]fx.Option, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			name := fmt.Sprintf("svc_%d", j)
 			providers[j] = fx.Provide(
@@ -140,7 +140,7 @@ func benchmarkLifecycleFx(b *testing.B, count int) {
 		}
 
 		invokers := make([]any, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			name := fmt.Sprintf("svc_%d", j)
 			invokers[j] = fx.Annotate(
 				func(*Config) {},
@@ -164,7 +164,7 @@ func benchmarkLifecycleFxWithWork(b *testing.B, count int, work time.Duration) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		providers := make([]fx.Option, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			idx := j
 			name := fmt.Sprintf("svc_%d", j)
 			providers[j] = fx.Provide(
@@ -191,7 +191,7 @@ func benchmarkLifecycleFxWithWork(b *testing.B, count int, work time.Duration) {
 		}
 
 		invokers := make([]any, count)
-		for j := 0; j < count; j++ {
+		for j := range count {
 			name := fmt.Sprintf("svc_%d", j)
 			invokers[j] = fx.Annotate(
 				func(*Config) {},
